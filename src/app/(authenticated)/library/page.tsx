@@ -17,6 +17,7 @@ export default function LibraryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [personFilter, setPersonFilter] = useState<string | null>(null); // user_id or null for "All"
   const [statusFilter, setStatusFilter] = useState<string | null>(null); // read_status or null for "All"
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   // Onboarding state
   const [onboardMode, setOnboardMode] = useState<"choose" | "create" | "join">("choose");
@@ -64,9 +65,9 @@ export default function LibraryPage() {
     }
   }, [libraryId, ctxLoading, members]);
 
-  // Combined filter: search + person + read status
+  // Combined filter: search + person + read status + tag
   const applyFilters = useCallback(
-    (query: string, person: string | null, status: string | null) => {
+    (query: string, person: string | null, status: string | null, tag: string | null) => {
       let result = books;
 
       // Person filter
@@ -77,6 +78,11 @@ export default function LibraryPage() {
       // Read status filter
       if (status) {
         result = result.filter((b) => b.read_status === status);
+      }
+
+      // Tag filter
+      if (tag) {
+        result = result.filter((b) => b.tags?.includes(tag));
       }
 
       // Search filter
@@ -101,26 +107,36 @@ export default function LibraryPage() {
   const handleSearch = useCallback(
     (query: string) => {
       setSearchQuery(query);
-      applyFilters(query, personFilter, statusFilter);
+      applyFilters(query, personFilter, statusFilter, tagFilter);
     },
-    [applyFilters, personFilter, statusFilter]
+    [applyFilters, personFilter, statusFilter, tagFilter]
   );
 
   const handlePersonFilter = useCallback(
     (userId: string | null) => {
       setPersonFilter(userId);
-      applyFilters(searchQuery, userId, statusFilter);
+      applyFilters(searchQuery, userId, statusFilter, tagFilter);
     },
-    [applyFilters, searchQuery, statusFilter]
+    [applyFilters, searchQuery, statusFilter, tagFilter]
   );
 
   const handleStatusFilter = useCallback(
     (status: string | null) => {
       setStatusFilter(status);
-      applyFilters(searchQuery, personFilter, status);
+      applyFilters(searchQuery, personFilter, status, tagFilter);
     },
-    [applyFilters, searchQuery, personFilter]
+    [applyFilters, searchQuery, personFilter, tagFilter]
   );
+
+  const handleTagFilter = useCallback(
+    (tag: string | null) => {
+      setTagFilter(tag);
+      applyFilters(searchQuery, personFilter, statusFilter, tag);
+    },
+    [applyFilters, searchQuery, personFilter, statusFilter]
+  );
+
+  const allTags = [...new Set(books.flatMap((b) => b.tags || []))].sort();
 
   if (loading || ctxLoading) {
     return (
@@ -317,6 +333,35 @@ export default function LibraryPage() {
         </div>
       )}
 
+      {/* Tag filter pills */}
+      {allTags.length > 0 && books.length > 0 && (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+          <button
+            onClick={() => handleTagFilter(null)}
+            className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+              tagFilter === null
+                ? "bg-[#6B9FB8] text-white"
+                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+            }`}
+          >
+            All Tags
+          </button>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => handleTagFilter(tag)}
+              className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                tagFilter === tag
+                  ? "bg-[#6B9FB8] text-white"
+                  : "bg-[#D4E8F0]/30 text-[#6B9FB8] border border-[#D4E8F0]/50"
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Empty state */}
       {books.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -381,7 +426,7 @@ export default function LibraryPage() {
       )}
 
       {/* No search/filter results */}
-      {(searchQuery || personFilter || statusFilter) && filteredBooks.length === 0 && books.length > 0 && (
+      {(searchQuery || personFilter || statusFilter || tagFilter) && filteredBooks.length === 0 && books.length > 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <p className="text-[#8A7F85] text-sm">
             No books match your {searchQuery ? "search" : "filters"}.

@@ -72,7 +72,7 @@ export default function BookDetailPage() {
   }, [bookId]);
 
   const updateField = useCallback(
-    (field: string, value: string | number | null) => {
+    (field: string, value: string | number | string[] | null) => {
       if (!book) return;
 
       // Optimistic update
@@ -302,6 +302,59 @@ export default function BookDetailPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Tags section */}
+      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+        <h2
+          className="text-sm font-semibold text-[#3D3539] mb-3"
+          style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+        >
+          Tags
+        </h2>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {(book.tags || []).map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-[#D4E8F0]/30 text-[#6B9FB8]"
+            >
+              {tag}
+              <button
+                onClick={() =>
+                  updateField(
+                    "tags",
+                    (book.tags || []).filter((t) => t !== tag) as unknown as string
+                  )
+                }
+                className="hover:text-[#3D3539] transition-colors ml-0.5"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m18 6-12 12" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </span>
+          ))}
+        </div>
+        <input
+          type="text"
+          placeholder="Add a tag..."
+          className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              const input = e.currentTarget;
+              const value = input.value.trim().toLowerCase().replace(/,/g, "");
+              if (value && !(book.tags || []).includes(value)) {
+                updateField(
+                  "tags",
+                  [...(book.tags || []), value] as unknown as string
+                );
+              }
+              input.value = "";
+            }
+          }}
+        />
       </div>
 
       {/* Reading section */}

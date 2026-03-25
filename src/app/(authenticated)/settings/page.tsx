@@ -21,6 +21,8 @@ export default function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchLibrary() {
@@ -247,6 +249,49 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRefreshMetadata = async () => {
+    if (!libraryId) return;
+    setRefreshing(true);
+    setRefreshResult(null);
+
+    try {
+      const { refreshEdition } = await import("@/lib/services/book-lookup");
+
+      // Fetch all book editions that have missing authors or description
+      const { data: editions } = await supabase
+        .from("book_editions")
+        .select("*")
+        .or("authors.eq.{},description.is.null");
+
+      if (!editions || editions.length === 0) {
+        setRefreshResult("All books already have complete metadata.");
+        setRefreshing(false);
+        return;
+      }
+
+      let updated = 0;
+      let failed = 0;
+
+      for (const edition of editions) {
+        try {
+          const result = await refreshEdition(edition, supabase);
+          if (result) updated++;
+          else failed++;
+        } catch {
+          failed++;
+        }
+      }
+
+      setRefreshResult(
+        `Refreshed ${updated} book${updated !== 1 ? "s" : ""}${failed > 0 ? `, ${failed} failed` : ""}.`
+      );
+    } catch {
+      setRefreshResult("Refresh failed. Please try again.");
+    }
+
+    setRefreshing(false);
+  };
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push("/login");
@@ -438,6 +483,40 @@ export default function SettingsPage() {
             }`}
           >
             {importResult}
+          </div>
+        )}
+      </div>
+
+      {/* Refresh metadata */}
+      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+        <h2
+          className="text-sm font-semibold text-[#3D3539] mb-3"
+          style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+        >
+          Refresh Metadata
+        </h2>
+        <p className="text-xs text-[#8A7F85] mb-3">
+          Re-fetch metadata for books with missing authors or descriptions using multiple sources.
+        </p>
+        <button
+          onClick={handleRefreshMetadata}
+          disabled={refreshing}
+          className="w-full bg-[#F8F5F0] hover:bg-[#F0EBE6] disabled:opacity-50 text-[#3D3539] text-sm font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+          </svg>
+          {refreshing ? "Refreshing..." : "Refresh Metadata"}
+        </button>
+        {refreshResult && (
+          <div
+            className={`mt-3 px-3 py-2 rounded-xl text-xs ${
+              refreshResult.includes("failed")
+                ? "bg-[#F5C6AA]/15 text-[#D4956F]"
+                : "bg-[#A8D5BA]/15 text-[#6BAF8D]"
+            }`}
+          >
+            {refreshResult}
           </div>
         )}
       </div>

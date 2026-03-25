@@ -132,6 +132,19 @@ export default function BookCard({ book }: BookCardProps) {
               {book.condition.replace("_", " ")}
             </span>
           )}
+          {(book.tags || []).slice(0, 2).map((tag) => (
+            <span
+              key={tag}
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#D4E8F0]/30 text-[#6B9FB8]"
+            >
+              {tag}
+            </span>
+          ))}
+          {(book.tags || []).length > 2 && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#D4E8F0]/20 text-[#6B9FB8]/70">
+              +{(book.tags || []).length - 2}
+            </span>
+          )}
         </div>
 
         {/* Rating */}

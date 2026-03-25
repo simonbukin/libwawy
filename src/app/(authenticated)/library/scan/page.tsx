@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import Scanner from "@/components/scanner";
 import Link from "next/link";
 import type { BookEdition, BookWithEdition, WishlistWithEdition } from "@/lib/types/book";
+// lookupByIsbn is dynamically imported in lookupIsbn callback
 
 type ScanState = "scanning" | "looking_up" | "result" | "already_owned" | "on_wishlist" | "error" | "added";
 
@@ -30,79 +31,18 @@ export default function ScanPage() {
       const supabase = createClient();
 
       try {
-        // Check if we already have this edition
-        const isbnField = isbn.length === 13 ? "isbn_13" : "isbn_10";
-        let { data: existingEdition } = await supabase
-          .from("book_editions")
-          .select("*")
-          .eq(isbnField, isbn)
-          .limit(1)
-          .single();
+        // Use the centralized lookup service (checks DB cache, then multi-source API chain)
+        const { lookupByIsbn } = await import("@/lib/services/book-lookup");
+        const lookedUp = await lookupByIsbn(isbn, supabase);
 
-        // If not in our DB, try to look it up via Open Library
-        if (!existingEdition) {
-          const response = await fetch(
-            `https://openlibrary.org/isbn/${isbn}.json`
-          );
-          if (!response.ok) {
-            setScanState("error");
-            setErrorMessage("Book not found. Try adding it manually.");
-            return;
-          }
-          const olData = await response.json();
-
-          // Get author names
-          let authors: string[] = [];
-          if (olData.authors) {
-            const authorPromises = olData.authors.map(
-              async (a: { key: string }) => {
-                const res = await fetch(
-                  `https://openlibrary.org${a.key}.json`
-                );
-                const authorData = await res.json();
-                return authorData.name || "Unknown";
-              }
-            );
-            authors = await Promise.all(authorPromises);
-          }
-
-          // Get cover URL
-          const coverId = olData.covers?.[0];
-          const coverUrl = coverId
-            ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
-            : null;
-
-          // Insert into book_editions
-          const { data: newEdition, error: insertError } = await supabase
-            .from("book_editions")
-            .insert({
-              isbn_13: isbn.length === 13 ? isbn : null,
-              isbn_10: isbn.length === 10 ? isbn : null,
-              title: olData.title || "Unknown Title",
-              subtitle: olData.subtitle || null,
-              authors,
-              publisher: olData.publishers?.[0] || null,
-              published_year: olData.publish_date
-                ? parseInt(olData.publish_date.match(/\d{4}/)?.[0] || "0") || null
-                : null,
-              language: "en",
-              format: olData.physical_format || null,
-              page_count: olData.number_of_pages || null,
-              cover_url: coverUrl,
-              open_library_id: olData.key || null,
-            })
-            .select()
-            .single();
-
-          if (insertError || !newEdition) {
-            setScanState("error");
-            setErrorMessage("Failed to save book data. Please try again.");
-            return;
-          }
-          existingEdition = newEdition;
+        if (!lookedUp) {
+          setScanState("error");
+          setErrorMessage("Book not found. Try adding it manually.");
+          return;
         }
 
-        setEdition(existingEdition as BookEdition);
+        setEdition(lookedUp);
+        const existingEdition = lookedUp;
 
         // Check if already in library
         const { data: libraryBook } = await supabase

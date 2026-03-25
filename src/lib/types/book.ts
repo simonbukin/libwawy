@@ -56,6 +56,7 @@ export interface LibraryBook {
   notes: string | null;
   removed_at: string | null;
   removed_reason: string | null;
+  tags: string[];
 }
 
 export interface Wishlist {
