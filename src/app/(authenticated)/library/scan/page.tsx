@@ -18,6 +18,8 @@ export default function ScanPage() {
   const [wishlistMatch, setWishlistMatch] = useState<WishlistWithEdition | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [adding, setAdding] = useState(false);
+  const [manualIsbn, setManualIsbn] = useState("");
+  const [cameraFailed, setCameraFailed] = useState(false);
 
   const lookupIsbn = useCallback(
     async (isbn: string) => {
@@ -214,10 +216,61 @@ export default function ScanPage() {
       {/* Scanner */}
       {scanState === "scanning" && (
         <div>
-          <Scanner onScan={lookupIsbn} />
-          <p className="text-center text-[#8A7F85] text-xs mt-3">
-            Point your camera at a book&apos;s barcode (ISBN)
-          </p>
+          {!cameraFailed && (
+            <Scanner
+              onScan={lookupIsbn}
+              onError={() => setCameraFailed(true)}
+            />
+          )}
+
+          {cameraFailed ? (
+            <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-5 text-center">
+              <div className="w-12 h-12 rounded-full bg-[#F5C6AA]/15 flex items-center justify-center mx-auto mb-3">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-[#3D3539] mb-1">Camera not available</p>
+              <p className="text-xs text-[#8A7F85] mb-4">
+                Check your browser&apos;s camera permissions, or type the ISBN manually below.
+              </p>
+            </div>
+          ) : (
+            <p className="text-center text-[#8A7F85] text-xs mt-3">
+              Point your camera at a book&apos;s barcode
+            </p>
+          )}
+
+          {/* Manual ISBN fallback — always visible */}
+          <div className="mt-4 bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4">
+            <p className="text-xs text-[#8A7F85] mb-2">
+              {cameraFailed ? "Enter ISBN manually:" : "Or enter ISBN manually:"}
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={manualIsbn}
+                onChange={(e) => setManualIsbn(e.target.value.replace(/[^0-9Xx-]/g, ""))}
+                placeholder="978-0-123456-78-9"
+                className="flex-1 px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all font-mono"
+              />
+              <button
+                onClick={() => {
+                  const cleaned = manualIsbn.replace(/[^0-9X]/gi, "");
+                  if (cleaned.length === 10 || cleaned.length === 13) {
+                    lookupIsbn(cleaned);
+                  }
+                }}
+                disabled={!manualIsbn.replace(/[^0-9X]/gi, "").match(/^.{10,13}$/)}
+                className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-40 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
+              >
+                Look up
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
