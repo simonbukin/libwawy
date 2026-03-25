@@ -1,26 +1,119 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-cream: #FFFBF5;
+  --color-lavender: #B8A9D4;
+  --color-lavender-light: #D4C9E8;
+  --color-lavender-dark: #9B89BF;
+  --color-mint: #A8D5BA;
+  --color-mint-light: #C5E8D2;
+  --color-peach: #F5C6AA;
+  --color-peach-light: #FADDC9;
+  --color-pink: #E8B4C8;
+  --color-pink-light: #F2D1E0;
+  --color-charcoal: #3D3539;
+  --color-muted: #8A7F85;
+  --color-card: #FFFFFF;
+  --color-border: #F0EBE6;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-cream: var(--color-cream);
+  --color-lavender: var(--color-lavender);
+  --color-lavender-light: var(--color-lavender-light);
+  --color-lavender-dark: var(--color-lavender-dark);
+  --color-mint: var(--color-mint);
+  --color-mint-light: var(--color-mint-light);
+  --color-peach: var(--color-peach);
+  --color-peach-light: var(--color-peach-light);
+  --color-pink: var(--color-pink);
+  --color-pink-light: var(--color-pink-light);
+  --color-charcoal: var(--color-charcoal);
+  --color-muted: var(--color-muted);
+  --color-card: var(--color-card);
+  --color-border: var(--color-border);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Smooth transitions globally */
+* {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-lavender-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-lavender);
+}
+
+/* Firefox scrollbar */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-lavender-light) transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-cream);
+  color: var(--color-charcoal);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Noise texture overlay */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Focus styles */
+input:focus,
+textarea:focus,
+select:focus,
+button:focus-visible {
+  outline: 2px solid var(--color-lavender);
+  outline-offset: 2px;
+}
+
+/* Remove default focus outline for non-keyboard users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Scanner styling overrides */
+#html5-qrcode-button-camera-permission,
+#html5-qrcode-button-camera-start,
+#html5-qrcode-button-camera-stop {
+  background-color: var(--color-lavender) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  padding: 8px 20px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s !important;
+}
+
+#html5-qrcode-button-camera-permission:hover,
+#html5-qrcode-button-camera-start:hover,
+#html5-qrcode-button-camera-stop:hover {
+  background-color: var(--color-lavender-dark) !important;
 }

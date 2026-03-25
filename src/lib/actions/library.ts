@@ -1,0 +1,101 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+
+function generateJoinCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+export async function createLibrary(name: string, displayName: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "Not authenticated" };
+  }
+
+  const joinCode = generateJoinCode();
+  const libraryId = crypto.randomUUID();
+
+  const { error: libraryError } = await supabase
+    .from("libraries")
+    .insert({ id: libraryId, name, join_code: joinCode });
+
+  if (libraryError) {
+    return { error: libraryError.message };
+  }
+
+  const { error: memberError } = await supabase
+    .from("library_members")
+    .insert({
+      library_id: libraryId,
+      user_id: user.id,
+      role: "owner",
+      display_name: displayName,
+    });
+
+  if (memberError) {
+    return { error: memberError.message };
+  }
+
+  return { data: { id: libraryId, name, join_code: joinCode } };
+}
+
+export async function joinLibrary(joinCode: string, displayName: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "Not authenticated" };
+  }
+
+  const { data: library, error: findError } = await supabase
+    .from("libraries")
+    .select("id")
+    .eq("join_code", joinCode)
+    .single();
+
+  if (findError || !library) {
+    return { error: "Library not found. Check your join code." };
+  }
+
+  // Check if user is already a member
+  const { data: existing } = await supabase
+    .from("library_members")
+    .select("id")
+    .eq("library_id", library.id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (existing) {
+    return { error: "You are already a member of this library." };
+  }
+
+  const { error: memberError } = await supabase
+    .from("library_members")
+    .insert({
+      library_id: library.id,
+      user_id: user.id,
+      role: "member",
+      display_name: displayName,
+    });
+
+  if (memberError) {
+    return { error: memberError.message };
+  }
+
+  return { data: library };
+}

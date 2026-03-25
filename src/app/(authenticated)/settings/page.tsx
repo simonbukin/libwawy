@@ -1,0 +1,454 @@
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import { useLibrary } from "@/lib/context/library-context";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import type { BookWithEdition } from "@/lib/types/book";
+
+export default function SettingsPage() {
+  const { libraryId, userId, displayName, members } = useLibrary();
+  const router = useRouter();
+  const supabase = createClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [libraryName, setLibraryName] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [editedName, setEditedName] = useState(displayName || "");
+  const [copied, setCopied] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+  const [savingLibName, setSavingLibName] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchLibrary() {
+      if (!libraryId) return;
+      const { data } = await supabase
+        .from("libraries")
+        .select("name, join_code")
+        .eq("id", libraryId)
+        .single();
+
+      if (data) {
+        setLibraryName(data.name || "");
+        setJoinCode(data.join_code || "");
+      }
+    }
+    fetchLibrary();
+  }, [libraryId, supabase]);
+
+  useEffect(() => {
+    setEditedName(displayName || "");
+  }, [displayName]);
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(joinCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveLibraryName = async () => {
+    if (!libraryId) return;
+    setSavingLibName(true);
+    await supabase
+      .from("libraries")
+      .update({ name: libraryName })
+      .eq("id", libraryId);
+    setSavingLibName(false);
+  };
+
+  const handleSaveDisplayName = async () => {
+    if (!libraryId || !userId) return;
+    setSavingName(true);
+    await supabase
+      .from("library_members")
+      .update({ display_name: editedName })
+      .eq("library_id", libraryId)
+      .eq("user_id", userId);
+    setSavingName(false);
+  };
+
+  const handleExport = async () => {
+    if (!libraryId) return;
+    setExporting(true);
+
+    const { data } = await supabase
+      .from("library_books")
+      .select("*, book_editions(*)")
+      .eq("library_id", libraryId)
+      .is("removed_at", null);
+
+    if (data) {
+      const books = data as BookWithEdition[];
+      const headers = [
+        "Title",
+        "Authors",
+        "ISBN-13",
+        "ISBN-10",
+        "Publisher",
+        "Year",
+        "Pages",
+        "Format",
+        "Condition",
+        "Location",
+        "Read Status",
+        "Rating",
+        "Notes",
+        "Loaned To",
+      ];
+
+      const rows = books.map((b) => [
+        b.book_editions.title,
+        b.book_editions.authors?.join("; ") || "",
+        b.book_editions.isbn_13 || "",
+        b.book_editions.isbn_10 || "",
+        b.book_editions.publisher || "",
+        b.book_editions.published_year?.toString() || "",
+        b.book_editions.page_count?.toString() || "",
+        b.book_editions.format || "",
+        b.condition,
+        b.location || "",
+        b.read_status,
+        b.rating?.toString() || "",
+        b.notes || "",
+        b.loaned_to || "",
+      ]);
+
+      const csvContent = [headers, ...rows]
+        .map((row) =>
+          row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")
+        )
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `libwawy-export-${new Date().toISOString().split("T")[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    setExporting(false);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !libraryId || !userId) return;
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const Papa = (await import("papaparse")).default;
+      const text = await file.text();
+
+      const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+      const rows = result.data as Record<string, string>[];
+
+      let added = 0;
+      let skipped = 0;
+
+      for (const row of rows) {
+        const title = row["Title"] || row["title"];
+        const isbn13 = row["ISBN-13"] || row["isbn_13"] || row["ISBN13"];
+        const isbn10 = row["ISBN-10"] || row["isbn_10"] || row["ISBN10"];
+
+        if (!title && !isbn13 && !isbn10) {
+          skipped++;
+          continue;
+        }
+
+        // Try to find or create edition
+        let editionId: string | null = null;
+
+        if (isbn13 || isbn10) {
+          const field = isbn13 ? "isbn_13" : "isbn_10";
+          const val = isbn13 || isbn10;
+          const { data: existing } = await supabase
+            .from("book_editions")
+            .select("id")
+            .eq(field, val)
+            .limit(1)
+            .single();
+
+          if (existing) {
+            editionId = existing.id;
+          }
+        }
+
+        if (!editionId && title) {
+          // Create a minimal edition
+          const { data: newEd } = await supabase
+            .from("book_editions")
+            .insert({
+              isbn_13: isbn13 || null,
+              isbn_10: isbn10 || null,
+              title,
+              authors: row["Authors"]?.split(";").map((a) => a.trim()) || [],
+              publisher: row["Publisher"] || null,
+              published_year: row["Year"] ? parseInt(row["Year"]) || null : null,
+              page_count: row["Pages"] ? parseInt(row["Pages"]) || null : null,
+              format: row["Format"] || null,
+              language: "en",
+            })
+            .select("id")
+            .single();
+
+          if (newEd) {
+            editionId = newEd.id;
+          }
+        }
+
+        if (!editionId) {
+          skipped++;
+          continue;
+        }
+
+        // Check if already in library
+        const { data: existing } = await supabase
+          .from("library_books")
+          .select("id")
+          .eq("library_id", libraryId)
+          .eq("edition_id", editionId)
+          .is("removed_at", null)
+          .limit(1)
+          .single();
+
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        await supabase.from("library_books").insert({
+          library_id: libraryId,
+          edition_id: editionId,
+          added_by: userId,
+          condition: row["Condition"] || "good",
+          location: row["Location"] || null,
+          read_status: (row["Read Status"] as "unread" | "reading" | "read") || "unread",
+          rating: row["Rating"] ? parseInt(row["Rating"]) || null : null,
+          notes: row["Notes"] || null,
+          loaned_to: row["Loaned To"] || null,
+        });
+
+        added++;
+      }
+
+      setImportResult(`Imported ${added} book${added !== 1 ? "s" : ""}${skipped > 0 ? `, skipped ${skipped}` : ""}.`);
+    } catch {
+      setImportResult("Import failed. Please check your CSV format.");
+    }
+
+    setImporting(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  return (
+    <div className="px-4 py-4">
+      <h1
+        className="text-xl font-bold mb-6"
+        style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+      >
+        Settings
+      </h1>
+
+      {/* Library name */}
+      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+        <h2
+          className="text-sm font-semibold text-[#3D3539] mb-3"
+          style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+        >
+          Library Name
+        </h2>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={libraryName}
+            onChange={(e) => setLibraryName(e.target.value)}
+            placeholder="Name your library..."
+            className="flex-1 px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+          />
+          <button
+            onClick={handleSaveLibraryName}
+            disabled={savingLibName}
+            className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-xl transition-all"
+          >
+            {savingLibName ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+
+      {/* Join code */}
+      {joinCode && (
+        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+          <h2
+            className="text-sm font-semibold text-[#3D3539] mb-3"
+            style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+          >
+            Join Code
+          </h2>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] font-mono tracking-wider">
+              {joinCode}
+            </div>
+            <button
+              onClick={handleCopyCode}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                copied
+                  ? "bg-[#A8D5BA] text-white"
+                  : "bg-[#F8F5F0] hover:bg-[#F0EBE6] text-[#3D3539]"
+              }`}
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="text-xs text-[#8A7F85] mt-2">
+            Share this code with someone to let them join your library.
+          </p>
+        </div>
+      )}
+
+      {/* Members */}
+      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+        <h2
+          className="text-sm font-semibold text-[#3D3539] mb-3"
+          style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+        >
+          Members
+        </h2>
+        <div className="space-y-3">
+          {members.map((member) => {
+            const isMe = member.user_id === userId;
+            return (
+              <div key={member.id} className="flex items-center gap-3">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${
+                    isMe ? "bg-[#B8A9D4]" : "bg-[#A8D5BA]"
+                  }`}
+                >
+                  {(member.display_name || "?").charAt(0).toUpperCase()}
+                </div>
+                {isMe ? (
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      placeholder="Your display name"
+                      className="flex-1 px-3 py-1.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-lg text-sm text-[#3D3539] focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+                    />
+                    <button
+                      onClick={handleSaveDisplayName}
+                      disabled={savingName}
+                      className="text-xs text-[#B8A9D4] hover:text-[#9B89BF] font-medium transition-colors"
+                    >
+                      {savingName ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <p className="text-sm text-[#3D3539]">
+                      {member.display_name || "Unnamed"}
+                    </p>
+                    <p className="text-xs text-[#8A7F85]">{member.role}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Export */}
+      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+        <h2
+          className="text-sm font-semibold text-[#3D3539] mb-3"
+          style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+        >
+          Export Library
+        </h2>
+        <p className="text-xs text-[#8A7F85] mb-3">
+          Download your library as a CSV file.
+        </p>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="w-full bg-[#F8F5F0] hover:bg-[#F0EBE6] disabled:opacity-50 text-[#3D3539] text-sm font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          {exporting ? "Exporting..." : "Export CSV"}
+        </button>
+      </div>
+
+      {/* Import */}
+      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+        <h2
+          className="text-sm font-semibold text-[#3D3539] mb-3"
+          style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+        >
+          Import Books
+        </h2>
+        <p className="text-xs text-[#8A7F85] mb-3">
+          Upload a CSV file with columns: Title, Authors, ISBN-13, ISBN-10,
+          Publisher, Year, Pages, Format, Condition, Location, Read Status,
+          Rating, Notes, Loaned To.
+        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleImport}
+          className="hidden"
+          id="import-csv"
+        />
+        <label
+          htmlFor="import-csv"
+          className={`w-full block text-center cursor-pointer bg-[#F8F5F0] hover:bg-[#F0EBE6] text-[#3D3539] text-sm font-medium py-2.5 rounded-xl transition-all ${
+            importing ? "opacity-50 pointer-events-none" : ""
+          }`}
+        >
+          <span className="flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            {importing ? "Importing..." : "Choose CSV File"}
+          </span>
+        </label>
+        {importResult && (
+          <div
+            className={`mt-3 px-3 py-2 rounded-xl text-xs ${
+              importResult.includes("failed")
+                ? "bg-[#F5C6AA]/15 text-[#D4956F]"
+                : "bg-[#A8D5BA]/15 text-[#6BAF8D]"
+            }`}
+          >
+            {importResult}
+          </div>
+        )}
+      </div>
+
+      {/* Sign out */}
+      <button
+        onClick={handleSignOut}
+        className="w-full py-3 text-sm font-medium text-[#C97070] hover:text-[#B85555] hover:bg-[#C97070]/5 rounded-2xl transition-all mb-8"
+      >
+        Sign Out
+      </button>
+    </div>
+  );
+}
