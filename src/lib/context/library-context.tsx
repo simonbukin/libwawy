@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -16,6 +17,7 @@ interface LibraryContextValue {
   displayName: string | null;
   members: LibraryMember[];
   loading: boolean;
+  refreshLibrary: () => Promise<void>;
 }
 
 const LibraryContext = createContext<LibraryContextValue>({
@@ -24,6 +26,7 @@ const LibraryContext = createContext<LibraryContextValue>({
   displayName: null,
   members: [],
   loading: true,
+  refreshLibrary: async () => {},
 });
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
@@ -33,56 +36,61 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<LibraryMember[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchLibraryData() {
-      const supabase = createClient();
+  const fetchLibraryData = useCallback(async () => {
+    const supabase = createClient();
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      setUserId(user.id);
-
-      // Get the user's library membership
-      const { data: membership } = await supabase
-        .from("library_members")
-        .select("library_id, display_name")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
-
-      if (!membership) {
-        setLoading(false);
-        return;
-      }
-
-      setLibraryId(membership.library_id);
-      setDisplayName(membership.display_name);
-
-      // Get all members of this library
-      const { data: allMembers } = await supabase
-        .from("library_members")
-        .select("*")
-        .eq("library_id", membership.library_id);
-
-      if (allMembers) {
-        setMembers(allMembers as LibraryMember[]);
-      }
-
+    if (!user) {
       setLoading(false);
+      return;
     }
 
-    fetchLibraryData();
+    setUserId(user.id);
+
+    // Get the user's library membership
+    const { data: membership } = await supabase
+      .from("library_members")
+      .select("library_id, display_name")
+      .eq("user_id", user.id)
+      .limit(1)
+      .single();
+
+    if (!membership) {
+      setLoading(false);
+      return;
+    }
+
+    setLibraryId(membership.library_id);
+    setDisplayName(membership.display_name);
+
+    // Get all members of this library
+    const { data: allMembers } = await supabase
+      .from("library_members")
+      .select("*")
+      .eq("library_id", membership.library_id);
+
+    if (allMembers) {
+      setMembers(allMembers as LibraryMember[]);
+    }
+
+    setLoading(false);
   }, []);
+
+  const refreshLibrary = useCallback(async () => {
+    setLoading(true);
+    await fetchLibraryData();
+  }, [fetchLibraryData]);
+
+  useEffect(() => {
+    fetchLibraryData();
+  }, [fetchLibraryData]);
 
   return (
     <LibraryContext.Provider
-      value={{ libraryId, userId, displayName, members, loading }}
+      value={{ libraryId, userId, displayName, members, loading, refreshLibrary }}
     >
       {children}
     </LibraryContext.Provider>

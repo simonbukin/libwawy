@@ -28,6 +28,8 @@ const placeholderColors = [
   "bg-[#E8B4C8]",
 ];
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 export default function BookDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -39,8 +41,18 @@ export default function BookDetailPage() {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
   const [removing, setRemoving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaves = useRef(0);
+
+  // Clean up status timer on unmount
+  useEffect(() => {
+    return () => {
+      if (statusTimer.current) clearTimeout(statusTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchBook() {
@@ -71,12 +83,41 @@ export default function BookDetailPage() {
         clearTimeout(debounceTimers.current[field]);
       }
 
+      // Clear any pending status reset
+      if (statusTimer.current) {
+        clearTimeout(statusTimer.current);
+        statusTimer.current = null;
+      }
+
+      setSaveStatus("saving");
+      pendingSaves.current += 1;
+
       debounceTimers.current[field] = setTimeout(async () => {
-        const supabase = createClient();
-        await supabase
-          .from("library_books")
-          .update({ [field]: value })
-          .eq("id", bookId);
+        try {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("library_books")
+            .update({ [field]: value })
+            .eq("id", bookId);
+
+          pendingSaves.current -= 1;
+
+          if (pendingSaves.current === 0) {
+            if (error) {
+              setSaveStatus("error");
+              statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
+            } else {
+              setSaveStatus("saved");
+              statusTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
+            }
+          }
+        } catch {
+          pendingSaves.current -= 1;
+          if (pendingSaves.current === 0) {
+            setSaveStatus("error");
+            statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
+          }
+        }
       }, 500);
     },
     [book, bookId]
@@ -120,7 +161,33 @@ export default function BookDetailPage() {
     edition.title.charCodeAt(0) % placeholderColors.length;
 
   return (
-    <div className="px-4 py-4 pb-8">
+    <div className="px-4 py-4 pb-8 relative">
+      {/* Save status indicator */}
+      {saveStatus !== "idle" && (
+        <div className="fixed top-3 right-4 z-40 flex items-center gap-1.5 pointer-events-none">
+          {saveStatus === "saving" && (
+            <>
+              <div className="w-3 h-3 rounded-full border border-[#8A7F85] border-t-transparent animate-spin" />
+              <span className="text-xs text-[#8A7F85]">Saving...</span>
+            </>
+          )}
+          {saveStatus === "saved" && (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6BAF8D" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span className="text-xs text-[#6BAF8D]">Saved</span>
+            </>
+          )}
+          {saveStatus === "error" && (
+            <>
+              <div className="w-2.5 h-2.5 rounded-full bg-[#C97070]" />
+              <span className="text-xs text-[#C97070]">Save failed</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Back button */}
       <div className="mb-4">
         <Link
@@ -257,7 +324,7 @@ export default function BookDetailPage() {
             <option value="">Not specified</option>
             {members.map((m) => (
               <option key={m.id} value={m.user_id}>
-                {m.display_name || m.user_id.substring(0, 8)}
+                {m.display_name || "Member"}
               </option>
             ))}
           </select>

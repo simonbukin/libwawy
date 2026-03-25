@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 function generateJoinCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "";
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -11,7 +11,7 @@ function generateJoinCode(): string {
   return code;
 }
 
-export async function createLibrary(name: string, displayName: string) {
+export async function createLibrary(name: string) {
   const supabase = await createClient();
 
   const {
@@ -22,6 +22,11 @@ export async function createLibrary(name: string, displayName: string) {
   if (authError || !user) {
     return { error: "Not authenticated" };
   }
+
+  const displayName =
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "User";
 
   const joinCode = generateJoinCode();
   const libraryId = crypto.randomUUID();
@@ -50,7 +55,7 @@ export async function createLibrary(name: string, displayName: string) {
   return { data: { id: libraryId, name, join_code: joinCode } };
 }
 
-export async function joinLibrary(joinCode: string, displayName: string) {
+export async function joinLibrary(joinCode: string) {
   const supabase = await createClient();
 
   const {
@@ -61,6 +66,21 @@ export async function joinLibrary(joinCode: string, displayName: string) {
   if (authError || !user) {
     return { error: "Not authenticated" };
   }
+
+  // Reuse existing display name from any library membership, else pull from Google profile
+  const { data: existingMembership } = await supabase
+    .from("library_members")
+    .select("display_name")
+    .eq("user_id", user.id)
+    .not("display_name", "is", null)
+    .limit(1)
+    .single();
+
+  const displayName =
+    existingMembership?.display_name ||
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "User";
 
   const { data: library, error: findError } = await supabase
     .from("libraries")

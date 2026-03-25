@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -16,14 +16,15 @@ const priorityDots = [
 
 export default function WishlistPage() {
   const { libraryId, userId, members } = useLibrary();
-  const [activeTab, setActiveTab] = useState<"mine" | "partner">("mine");
-  const [myWishlist, setMyWishlist] = useState<WishlistWithEdition[]>([]);
-  const [partnerWishlist, setPartnerWishlist] = useState<WishlistWithEdition[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("mine");
+  const [allItems, setAllItems] = useState<WishlistWithEdition[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const partner = members.find((m) => m.user_id !== userId);
-  const partnerName = partner?.display_name || "Partner";
+  const otherMembers = useMemo(
+    () => members.filter((m) => m.user_id !== userId),
+    [members, userId]
+  );
 
   const fetchWishlists = useCallback(async () => {
     if (!libraryId || !userId) return;
@@ -37,9 +38,7 @@ export default function WishlistPage() {
       .order("priority", { ascending: false });
 
     if (data) {
-      const items = data as WishlistWithEdition[];
-      setMyWishlist(items.filter((w) => w.user_id === userId));
-      setPartnerWishlist(items.filter((w) => w.user_id !== userId));
+      setAllItems(data as WishlistWithEdition[]);
     }
     setLoading(false);
   }, [libraryId, userId]);
@@ -51,20 +50,35 @@ export default function WishlistPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     const supabase = createClient();
-    await supabase.from("wishlists").delete().eq("id", id);
-    setMyWishlist((prev) => prev.filter((w) => w.id !== id));
+    const { error } = await supabase.from("wishlists").delete().eq("id", id);
+    if (!error) {
+      setAllItems((prev) => prev.filter((w) => w.id !== id));
+    }
     setDeletingId(null);
   };
 
   const handlePriorityChange = async (id: string, priority: number) => {
     const supabase = createClient();
     await supabase.from("wishlists").update({ priority }).eq("id", id);
-    setMyWishlist((prev) =>
+    setAllItems((prev) =>
       prev.map((w) => (w.id === id ? { ...w, priority } : w))
     );
   };
 
-  const currentList = activeTab === "mine" ? myWishlist : partnerWishlist;
+  const isMineTab = activeTab === "mine";
+
+  const currentList = useMemo(() => {
+    if (isMineTab) {
+      return allItems.filter((w) => w.user_id === userId);
+    }
+    return allItems.filter((w) => w.user_id === activeTab);
+  }, [allItems, activeTab, userId, isMineTab]);
+
+  const activeDisplayName = useMemo(() => {
+    if (isMineTab) return null;
+    const member = members.find((m) => m.user_id === activeTab);
+    return member?.display_name || "Member";
+  }, [activeTab, isMineTab, members]);
 
   if (loading) {
     return (
@@ -86,29 +100,36 @@ export default function WishlistPage() {
         </h1>
       </div>
 
-      {/* Tab toggle */}
-      <div className="flex bg-white border border-[#F0EBE6] rounded-xl p-0.5 mb-4">
-        <button
-          onClick={() => setActiveTab("mine")}
-          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-            activeTab === "mine"
-              ? "bg-[#E8B4C8] text-white shadow-sm"
-              : "text-[#8A7F85] hover:text-[#3D3539]"
-          }`}
-        >
-          My Wishlist
-        </button>
-        <button
-          onClick={() => setActiveTab("partner")}
-          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-            activeTab === "partner"
-              ? "bg-[#E8B4C8] text-white shadow-sm"
-              : "text-[#8A7F85] hover:text-[#3D3539]"
-          }`}
-        >
-          {partnerName}&apos;s Wishlist
-        </button>
-      </div>
+      {/* Tab pills */}
+      {(otherMembers.length > 0) && (
+        <div className="flex gap-2 mb-4 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab("mine")}
+            className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
+              isMineTab
+                ? "bg-[#E8B4C8] text-white"
+                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+            }`}
+            style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+          >
+            Mine
+          </button>
+          {otherMembers.map((m) => (
+            <button
+              key={m.user_id}
+              onClick={() => setActiveTab(m.user_id)}
+              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
+                activeTab === m.user_id
+                  ? "bg-[#E8B4C8] text-white"
+                  : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+              }`}
+              style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+            >
+              {m.display_name || "Member"}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Empty state */}
       {currentList.length === 0 && (
@@ -131,16 +152,16 @@ export default function WishlistPage() {
             className="text-lg font-semibold mb-1"
             style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
           >
-            {activeTab === "mine"
+            {isMineTab
               ? "Nothing on your wishlist yet!"
-              : `${partnerName} hasn't added anything yet`}
+              : `Nothing on ${activeDisplayName}\u2019s wishlist`}
           </h2>
           <p className="text-[#8A7F85] text-sm mb-6 max-w-xs">
-            {activeTab === "mine"
+            {isMineTab
               ? "Add books you'd love to read or own."
               : "Check back later for gift ideas!"}
           </p>
-          {activeTab === "mine" && (
+          {isMineTab && (
             <Link
               href="/wishlist/add"
               className="bg-[#E8B4C8] hover:bg-[#D9A0B6] text-white font-medium py-2.5 px-6 rounded-full transition-all text-sm"
@@ -195,7 +216,7 @@ export default function WishlistPage() {
                 <div className="flex items-center gap-1 mt-1.5">
                   <span className="text-[10px] text-[#8A7F85] mr-1">Priority:</span>
                   {[1, 2, 3, 4, 5].map((p) =>
-                    activeTab === "mine" ? (
+                    isMineTab ? (
                       <button
                         key={p}
                         onClick={() => handlePriorityChange(item.id, p)}
@@ -227,7 +248,7 @@ export default function WishlistPage() {
               </div>
 
               {/* Delete (only for own wishlist) */}
-              {activeTab === "mine" && (
+              {isMineTab && (
                 <button
                   onClick={() => handleDelete(item.id)}
                   disabled={deletingId === item.id}
@@ -256,7 +277,7 @@ export default function WishlistPage() {
       )}
 
       {/* FAB for my wishlist */}
-      {activeTab === "mine" && (
+      {isMineTab && (
         <Link
           href="/wishlist/add"
           className="fixed bottom-24 right-5 w-14 h-14 bg-[#E8B4C8] hover:bg-[#D9A0B6] active:bg-[#CC93AA] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 z-30"

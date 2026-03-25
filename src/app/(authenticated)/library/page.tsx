@@ -21,7 +21,6 @@ export default function LibraryPage() {
   // Onboarding state
   const [onboardMode, setOnboardMode] = useState<"choose" | "create" | "join">("choose");
   const [libName, setLibName] = useState("");
-  const [displayNameInput, setDisplayNameInput] = useState("");
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [onboardLoading, setOnboardLoading] = useState(false);
   const [onboardError, setOnboardError] = useState("");
@@ -135,10 +134,10 @@ export default function LibraryPage() {
   }
 
   const handleCreate = async () => {
-    if (!libName.trim() || !displayNameInput.trim()) return;
+    if (!libName.trim()) return;
     setOnboardLoading(true);
     setOnboardError("");
-    const result = await createLibrary(libName.trim(), displayNameInput.trim());
+    const result = await createLibrary(libName.trim());
     if (result.error) {
       setOnboardError(result.error);
       setOnboardLoading(false);
@@ -148,10 +147,10 @@ export default function LibraryPage() {
   };
 
   const handleJoin = async () => {
-    if (!joinCodeInput.trim() || !displayNameInput.trim()) return;
+    if (!joinCodeInput.trim()) return;
     setOnboardLoading(true);
     setOnboardError("");
-    const result = await joinLibrary(joinCodeInput.trim(), displayNameInput.trim());
+    const result = await joinLibrary(joinCodeInput.trim());
     if (result.error) {
       setOnboardError(result.error);
       setOnboardLoading(false);
@@ -203,17 +202,10 @@ export default function LibraryPage() {
                 placeholder="Library name (e.g. Our Bookshelf)"
                 className="w-full px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
               />
-              <input
-                type="text"
-                value={displayNameInput}
-                onChange={(e) => setDisplayNameInput(e.target.value)}
-                placeholder="Your display name"
-                className="w-full px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
-              />
               {onboardError && <p className="text-xs text-[#C97070]">{onboardError}</p>}
               <button
                 onClick={handleCreate}
-                disabled={onboardLoading || !libName.trim() || !displayNameInput.trim()}
+                disabled={onboardLoading || !libName.trim()}
                 className="w-full bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-all text-sm"
               >
                 {onboardLoading ? "Creating..." : "Create Library"}
@@ -239,17 +231,10 @@ export default function LibraryPage() {
                 maxLength={6}
                 className="w-full px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all font-mono tracking-widest text-center"
               />
-              <input
-                type="text"
-                value={displayNameInput}
-                onChange={(e) => setDisplayNameInput(e.target.value)}
-                placeholder="Your display name"
-                className="w-full px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
-              />
               {onboardError && <p className="text-xs text-[#C97070]">{onboardError}</p>}
               <button
                 onClick={handleJoin}
-                disabled={onboardLoading || !joinCodeInput.trim() || !displayNameInput.trim()}
+                disabled={onboardLoading || !joinCodeInput.trim()}
                 className="w-full bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-all text-sm"
               >
                 {onboardLoading ? "Joining..." : "Join Library"}
@@ -405,27 +390,25 @@ export default function LibraryPage() {
       )}
 
       {/* FAB */}
-      {books.length > 0 && (
-        <Link
-          href="/library/add"
-          className="fixed bottom-24 right-5 w-14 h-14 bg-[#B8A9D4] hover:bg-[#A898C7] active:bg-[#9B89BF] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 z-30"
-          aria-label="Add book"
+      <Link
+        href="/library/add"
+        className="fixed bottom-24 right-5 w-14 h-14 bg-[#B8A9D4] hover:bg-[#A898C7] active:bg-[#9B89BF] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 z-30"
+        aria-label="Add book"
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
-        </Link>
-      )}
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      </Link>
     </div>
   );
 }
