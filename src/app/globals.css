@@ -84,6 +84,15 @@ body {
   background-size: 256px 256px;
 }
 
+/* Prevent iOS Safari auto-zoom on focus (requires >= 16px) */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* Focus styles */
 input:focus,
 textarea:focus,
