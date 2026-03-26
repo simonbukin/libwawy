@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
-import { lookupByIsbn } from "@/lib/services/book-lookup";
+import { lookupByIsbn, searchByTitle } from "@/lib/services/book-lookup";
 import Link from "next/link";
+import ProviderBadge from "@/components/provider-badge";
+import type { ProviderResult } from "@/lib/services/providers/types";
 import type { BookEdition } from "@/lib/types/book";
 
 function looksLikeIsbn(input: string): boolean {
@@ -16,7 +18,7 @@ export default function AddBookPage() {
   const { libraryId } = useLibrary();
 
   const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<BookEdition[]>([]);
+  const [searchResults, setSearchResults] = useState<ProviderResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -63,7 +65,14 @@ export default function AddBookPage() {
         const cleaned = trimmed.replace(/[-\s]/g, "");
         const edition = await lookupByIsbn(cleaned, supabase);
         if (edition) {
-          setSearchResults([edition]);
+          setSearchResults([
+            {
+              provider: "lookup",
+              providerName: "ISBN Lookup",
+              confidence: 1,
+              data: edition,
+            },
+          ]);
         } else {
           setError("No book found for this ISBN.");
         }
@@ -92,47 +101,19 @@ export default function AddBookPage() {
         }
 
         if (localResults.length > 0) {
-          setSearchResults(localResults);
-        } else {
-          // Fallback to Open Library search
-          const response = await fetch(
-            `https://openlibrary.org/search.json?q=${encodeURIComponent(trimmed)}&limit=8&fields=key,title,author_name,first_publish_year,cover_i,isbn`
+          setSearchResults(
+            localResults.map((ed) => ({
+              provider: "local",
+              providerName: "Local",
+              confidence: 1,
+              data: ed,
+            }))
           );
-          const data = await response.json();
-
-          if (data.docs && data.docs.length > 0) {
-            const editions: BookEdition[] = data.docs.map(
-              (doc: {
-                key: string;
-                title: string;
-                author_name?: string[];
-                first_publish_year?: number;
-                cover_i?: number;
-                isbn?: string[];
-              }) => ({
-                id: doc.key,
-                isbn_13: doc.isbn?.find((i: string) => i.length === 13) || null,
-                isbn_10: doc.isbn?.find((i: string) => i.length === 10) || null,
-                title: doc.title,
-                subtitle: null,
-                authors: doc.author_name || [],
-                publisher: null,
-                published_year: doc.first_publish_year || null,
-                language: "en",
-                format: null,
-                page_count: null,
-                cover_url: doc.cover_i
-                  ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
-                  : null,
-                open_library_id: doc.key,
-                google_books_id: null,
-                description: null,
-                genres: null,
-                search_vector: null,
-                fetched_at: new Date().toISOString(),
-              })
-            );
-            setSearchResults(editions);
+        } else {
+          // Fallback to multi-provider title search
+          const results = await searchByTitle(trimmed);
+          if (results.length > 0) {
+            setSearchResults(results);
           } else {
             setError("No books found. Try a different search term.");
           }
@@ -145,9 +126,11 @@ export default function AddBookPage() {
     setSearching(false);
   }, [query]);
 
-  const handleAddBook = async (edition: BookEdition) => {
+  const handleAddBook = async (result: ProviderResult) => {
     if (!libraryId) return;
-    setAddingId(edition.id);
+    const edition = result.data as BookEdition;
+    const resultId = edition.id || result.data.open_library_id || `${result.provider}-${result.data.isbn_13 || result.data.title}`;
+    setAddingId(resultId);
     setError("");
 
     const supabase = createClient();
@@ -155,25 +138,26 @@ export default function AddBookPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    let editionId = edition.id;
+    let editionId: string | undefined = edition.id || undefined;
 
-    // If this is an Open Library result (not yet in our DB), insert it
-    if (edition.id.startsWith("/works/")) {
+    // If this is a search result (not yet in our DB), insert it
+    if (!editionId || editionId.startsWith("/works/")) {
       const { data: newEdition, error: insertErr } = await supabase
         .from("book_editions")
         .insert({
-          isbn_13: edition.isbn_13,
-          isbn_10: edition.isbn_10,
-          title: edition.title,
-          subtitle: edition.subtitle,
-          authors: edition.authors,
-          publisher: edition.publisher,
-          published_year: edition.published_year,
-          language: edition.language,
-          format: edition.format,
-          page_count: edition.page_count,
-          cover_url: edition.cover_url,
-          open_library_id: edition.open_library_id,
+          isbn_13: result.data.isbn_13 ?? null,
+          isbn_10: result.data.isbn_10 ?? null,
+          title: result.data.title ?? "",
+          subtitle: result.data.subtitle ?? null,
+          authors: result.data.authors ?? [],
+          publisher: result.data.publisher ?? null,
+          published_year: result.data.published_year ?? null,
+          language: result.data.language ?? "en",
+          format: result.data.format ?? null,
+          page_count: result.data.page_count ?? null,
+          cover_url: result.data.cover_url ?? null,
+          open_library_id: result.data.open_library_id ?? null,
+          google_books_id: result.data.google_books_id ?? null,
         })
         .select()
         .single();
@@ -186,25 +170,28 @@ export default function AddBookPage() {
       editionId = newEdition.id;
     }
 
+    // At this point editionId is guaranteed to be set
+    const finalEditionId = editionId as string;
+
     // Check if already in library
     const { data: existing } = await supabase
       .from("library_books")
       .select("id")
       .eq("library_id", libraryId)
-      .eq("edition_id", editionId)
+      .eq("edition_id", finalEditionId)
       .is("removed_at", null)
       .limit(1)
       .single();
 
     if (existing) {
-      setOwnedEditionIds((prev) => new Set(prev).add(editionId));
+      setOwnedEditionIds((prev) => new Set(prev).add(finalEditionId));
       setAddingId(null);
       return;
     }
 
     const { data: insertedBook, error: addErr } = await supabase.from("library_books").insert({
       library_id: libraryId,
-      edition_id: editionId,
+      edition_id: finalEditionId,
       added_by: user?.id || null,
       condition: "good",
       read_status: "unread",
@@ -213,22 +200,23 @@ export default function AddBookPage() {
     if (addErr) {
       setError("Failed to add book. Please try again.");
     } else {
-      setAddedIds((prev) => new Set(prev).add(edition.id));
-      setOwnedEditionIds((prev) => new Set(prev).add(editionId));
+      setAddedIds((prev) => new Set(prev).add(resultId));
+      setOwnedEditionIds((prev) => new Set(prev).add(finalEditionId));
       if (insertedBook) {
-        setAddedBookIds((prev) => new Map(prev).set(edition.id, insertedBook.id));
+        setAddedBookIds((prev) => new Map(prev).set(resultId, insertedBook.id));
       }
     }
 
     setAddingId(null);
   };
 
-  const isOwned = (edition: BookEdition) => {
-    // Check by database UUID (for local results) or by tracking set (for OL results just added)
-    if (ownedEditionIds.has(edition.id) || addedIds.has(edition.id)) return true;
-    // Also check by ISBN for Open Library results that might match owned editions
-    if (edition.isbn_13 && ownedIsbns.has(edition.isbn_13)) return true;
-    if (edition.isbn_10 && ownedIsbns.has(edition.isbn_10)) return true;
+  const isOwnedResult = (result: ProviderResult) => {
+    const edition = result.data as BookEdition;
+    const resultId = edition.id || result.data.open_library_id || `${result.provider}-${result.data.isbn_13 || result.data.title}`;
+    if (edition.id && ownedEditionIds.has(edition.id)) return true;
+    if (addedIds.has(resultId)) return true;
+    if (result.data.isbn_13 && ownedIsbns.has(result.data.isbn_13)) return true;
+    if (result.data.isbn_10 && ownedIsbns.has(result.data.isbn_10)) return true;
     return false;
   };
 
@@ -306,25 +294,27 @@ export default function AddBookPage() {
           <h3 className="text-sm font-semibold text-muted">
             {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
           </h3>
-          {searchResults.map((edition) => {
-            const owned = isOwned(edition);
-            const justAdded = addedIds.has(edition.id);
+          {searchResults.map((result, idx) => {
+            const edition = result.data;
+            const resultId = (edition as BookEdition).id || result.data.open_library_id || `${result.provider}-${result.data.isbn_13 || result.data.title}`;
+            const owned = isOwnedResult(result);
+            const justAdded = addedIds.has(resultId);
             return (
               <div
-                key={edition.id}
+                key={resultId || idx}
                 className="bg-card rounded-2xl border border-border shadow-sm p-4 flex gap-3"
               >
                 <div className="w-14 h-20 rounded-lg overflow-hidden bg-hover flex-shrink-0">
                   {edition.cover_url ? (
                     <img
                       src={edition.cover_url}
-                      alt={edition.title}
+                      alt={edition.title || ""}
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-lavender/20">
                       <span className="text-lavender text-lg font-bold" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
-                        {edition.title.charAt(0)}
+                        {(edition.title || "?").charAt(0)}
                       </span>
                     </div>
                   )}
@@ -341,6 +331,11 @@ export default function AddBookPage() {
                       {edition.published_year}
                     </p>
                   )}
+                  {result.provider !== "lookup" && result.provider !== "local" && (
+                    <div className="mt-1">
+                      <ProviderBadge providers={[result.provider]} />
+                    </div>
+                  )}
                 </div>
                 {owned ? (
                   <div className="self-center flex items-center gap-1.5 flex-shrink-0">
@@ -349,9 +344,9 @@ export default function AddBookPage() {
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6BAF8D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M20 6 9 17l-5-5" />
                         </svg>
-                        {addedBookIds.get(edition.id) && (
+                        {addedBookIds.get(resultId) && (
                           <Link
-                            href={`/library/book/${addedBookIds.get(edition.id)}/edit`}
+                            href={`/library/book/${addedBookIds.get(resultId)}/edit`}
                             className="text-xs text-lavender hover:text-lavender-hover font-medium"
                           >
                             Edit
@@ -364,11 +359,11 @@ export default function AddBookPage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => handleAddBook(edition)}
-                    disabled={addingId === edition.id}
+                    onClick={() => handleAddBook(result)}
+                    disabled={addingId === resultId}
                     className="self-center bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-xs font-medium py-2 px-4 rounded-full transition-all whitespace-nowrap flex-shrink-0"
                   >
-                    {addingId === edition.id ? "Adding..." : "Add"}
+                    {addingId === resultId ? "Adding..." : "Add"}
                   </button>
                 )}
               </div>

@@ -6,6 +6,8 @@ import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import TagInput from "@/components/tag-input";
+import FieldPicker from "@/components/field-picker";
+import type { FieldOption } from "@/lib/services/providers/types";
 import type { BookWithEdition } from "@/lib/types/book";
 
 const conditions = [
@@ -39,6 +41,8 @@ export default function BookEditPage() {
   const cancelRemoveRef = useRef<HTMLButtonElement>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [dateReadInput, setDateReadInput] = useState("");
+  const [fieldOptions, setFieldOptions] = useState<Record<string, FieldOption[]> | null>(null);
+  const [fetchingMetadata, setFetchingMetadata] = useState(false);
 
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -133,6 +137,63 @@ export default function BookEditPage() {
     [book, bookId]
   );
 
+  const handleFetchMetadata = useCallback(async () => {
+    if (!book) return;
+    const isbn = book.book_editions.isbn_13 || book.book_editions.isbn_10;
+    if (!isbn) return;
+
+    setFetchingMetadata(true);
+    try {
+      const { fetchFieldOptions } = await import("@/lib/services/book-lookup");
+      const options = await fetchFieldOptions(isbn);
+      setFieldOptions(options);
+    } catch {
+      setFieldOptions({});
+    }
+    setFetchingMetadata(false);
+  }, [book]);
+
+  const updateEditionField = useCallback(
+    async (field: string, value: unknown) => {
+      if (!book) return;
+
+      // Update local state
+      setBook((prev) =>
+        prev
+          ? {
+              ...prev,
+              book_editions: { ...prev.book_editions, [field]: value },
+            }
+          : prev
+      );
+
+      // Save to DB
+      setSaveStatus("saving");
+      try {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from("book_editions")
+          .update({ [field]: value })
+          .eq("id", book.book_editions.id);
+
+        if (error) {
+          setSaveStatus("error");
+          if (statusTimer.current) clearTimeout(statusTimer.current);
+          statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
+        } else {
+          setSaveStatus("saved");
+          if (statusTimer.current) clearTimeout(statusTimer.current);
+          statusTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
+        }
+      } catch {
+        setSaveStatus("error");
+        if (statusTimer.current) clearTimeout(statusTimer.current);
+        statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
+      }
+    },
+    [book]
+  );
+
   const handleRemove = async () => {
     setRemoving(true);
     const supabase = createClient();
@@ -215,6 +276,103 @@ export default function BookEditPage() {
       >
         Edit Book
       </h1>
+
+      {/* Edition Info section */}
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2
+            className="text-sm font-semibold text-charcoal"
+            style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+          >
+            Edition Info
+          </h2>
+          <button
+            onClick={handleFetchMetadata}
+            disabled={fetchingMetadata}
+            className="text-xs font-medium text-lavender hover:text-lavender-hover disabled:opacity-50 transition-colors flex items-center gap-1.5"
+          >
+            {fetchingMetadata ? (
+              <>
+                <div className="w-3 h-3 rounded-full border border-lavender border-t-transparent animate-spin" />
+                Fetching...
+              </>
+            ) : (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                </svg>
+                Fetch from providers
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <FieldPicker
+            label="Cover"
+            field="cover_url"
+            currentValue={edition.cover_url}
+            options={fieldOptions?.cover_url ?? []}
+            onPick={(val) => updateEditionField("cover_url", val)}
+          />
+          <FieldPicker
+            label="Title"
+            field="title"
+            currentValue={edition.title}
+            options={fieldOptions?.title ?? []}
+            onPick={(val) => updateEditionField("title", val)}
+          />
+          <FieldPicker
+            label="Authors"
+            field="authors"
+            currentValue={edition.authors}
+            options={fieldOptions?.authors ?? []}
+            onPick={(val) => updateEditionField("authors", val)}
+          />
+          <FieldPicker
+            label="Publisher"
+            field="publisher"
+            currentValue={edition.publisher}
+            options={fieldOptions?.publisher ?? []}
+            onPick={(val) => updateEditionField("publisher", val)}
+          />
+          <FieldPicker
+            label="Year"
+            field="published_year"
+            currentValue={edition.published_year}
+            options={fieldOptions?.published_year ?? []}
+            onPick={(val) => updateEditionField("published_year", val)}
+          />
+          <FieldPicker
+            label="Pages"
+            field="page_count"
+            currentValue={edition.page_count}
+            options={fieldOptions?.page_count ?? []}
+            onPick={(val) => updateEditionField("page_count", val)}
+          />
+          <FieldPicker
+            label="Format"
+            field="format"
+            currentValue={edition.format}
+            options={fieldOptions?.format ?? []}
+            onPick={(val) => updateEditionField("format", val)}
+          />
+          <FieldPicker
+            label="Description"
+            field="description"
+            currentValue={edition.description}
+            options={fieldOptions?.description ?? []}
+            onPick={(val) => updateEditionField("description", val)}
+          />
+          <FieldPicker
+            label="Genres"
+            field="genres"
+            currentValue={edition.genres}
+            options={fieldOptions?.genres ?? []}
+            onPick={(val) => updateEditionField("genres", val)}
+          />
+        </div>
+      </div>
 
       {/* Tags section with autocomplete */}
       <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">

@@ -1,54 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BookEdition } from "@/lib/types/book";
+import type { ProviderResult, FieldOption } from "./providers/types";
+import {
+  getApplicableProviders,
+  getSearchProviders,
+  DEFAULT_PRIORITY,
+  JP_PRIORITY,
+} from "./providers/index";
 
-interface OpenLibraryEdition {
-  title?: string;
-  subtitle?: string;
-  authors?: { key: string }[];
-  publishers?: string[];
-  publish_date?: string;
-  number_of_pages?: number;
-  isbn_13?: string[];
-  isbn_10?: string[];
-  covers?: number[];
-  key?: string;
-  works?: { key: string }[];
-  physical_format?: string;
-  languages?: { key: string }[];
-}
-
-interface OpenLibraryWork {
-  description?: string | { value: string };
-  subjects?: string[];
-}
-
-interface GoogleBooksVolume {
-  id: string;
-  volumeInfo: {
-    title?: string;
-    subtitle?: string;
-    authors?: string[];
-    publisher?: string;
-    publishedDate?: string;
-    pageCount?: number;
-    categories?: string[];
-    description?: string;
-    language?: string;
-    imageLinks?: {
-      thumbnail?: string;
-    };
-    industryIdentifiers?: {
-      type: string;
-      identifier: string;
-    }[];
-  };
-}
-
-// --- Helpers ---
-
-function isJapaneseIsbn(isbn: string): boolean {
-  return isbn.startsWith("9784");
-}
+// --- Language detection (unchanged logic) ---
 
 const OL_LANGUAGE_MAP: Record<string, string> = {
   eng: "en",
@@ -72,25 +32,25 @@ const ISBN_PREFIX_LANGUAGE: Record<string, string> = {
   "9785": "ru",
 };
 
+function isJapaneseIsbn(isbn: string): boolean {
+  return isbn.startsWith("9784");
+}
+
 function detectLanguage(
   isbn: string,
   sources: (Partial<BookEdition> | null)[]
 ): string {
-  // Check if any source returned a non-English language
   for (const source of sources) {
     if (!source?.language) continue;
     const lang = source.language;
-    // Map OL-style 3-letter codes
     const mapped = OL_LANGUAGE_MAP[lang] ?? lang;
     if (mapped && mapped !== "en") return mapped;
   }
 
-  // ISBN prefix inference
   for (const [prefix, lang] of Object.entries(ISBN_PREFIX_LANGUAGE)) {
     if (isbn.startsWith(prefix)) return lang;
   }
 
-  // Check if any source explicitly said "en"
   for (const source of sources) {
     if (source?.language) {
       const mapped = OL_LANGUAGE_MAP[source.language] ?? source.language;
@@ -101,334 +61,170 @@ function detectLanguage(
   return "en";
 }
 
-function isComplete(data: Partial<BookEdition> | null): boolean {
-  if (!data) return false;
-  return !!(
-    data.title &&
-    data.authors &&
-    data.authors.length > 0 &&
-    data.cover_url &&
-    data.description
+// --- Parallel fetch + merge ---
+
+async function fetchFromProviders(isbn: string): Promise<ProviderResult[]> {
+  const providers = getApplicableProviders(isbn);
+
+  const settled = await Promise.allSettled(
+    providers.map((p) => p.searchByIsbn(isbn))
   );
+
+  const priority = isbn.startsWith("9784") ? JP_PRIORITY : DEFAULT_PRIORITY;
+
+  const results: ProviderResult[] = [];
+  for (const result of settled) {
+    if (result.status === "fulfilled" && result.value) {
+      results.push(result.value);
+    }
+  }
+
+  // Sort by priority order
+  results.sort((a, b) => {
+    const ai = priority.indexOf(a.provider);
+    const bi = priority.indexOf(b.provider);
+    return ai - bi;
+  });
+
+  return results;
 }
 
-function mergeBookData(
-  primary: Partial<BookEdition> | null,
-  ...fallbacks: (Partial<BookEdition> | null)[]
-): Partial<BookEdition> {
-  const all = [primary, ...fallbacks].filter(
-    (s): s is Partial<BookEdition> => s !== null
-  );
-  if (all.length === 0) return {};
+function mergeProviderResults(
+  results: ProviderResult[],
+  isbn: string
+): {
+  data: Partial<BookEdition>;
+  providers: string[];
+  fieldAttribution: Record<string, string>;
+} {
+  const providers = results.map((r) => r.provider);
+  const fieldAttribution: Record<string, string> = {};
+  const all = results.map((r) => r.data);
+
+  if (all.length === 0) {
+    return { data: {}, providers, fieldAttribution };
+  }
 
   const pickFirst = <K extends keyof BookEdition>(
     key: K
-  ): BookEdition[K] | undefined => {
-    for (const source of all) {
-      const val = source[key];
-      if (val !== null && val !== undefined && val !== "") return val;
+  ): { value: BookEdition[K] | undefined; provider: string | undefined } => {
+    for (const result of results) {
+      const val = result.data[key];
+      if (val !== null && val !== undefined && val !== "") {
+        return { value: val, provider: result.provider };
+      }
     }
-    return undefined;
+    return { value: undefined, provider: undefined };
   };
 
-  // Authors: prefer source with non-empty array containing real names
+  // Authors: prefer source with non-empty array
   let authors: string[] = [];
-  for (const source of all) {
-    if (source.authors && source.authors.length > 0) {
-      authors = source.authors;
+  let authorsProvider: string | undefined;
+  for (const result of results) {
+    if (result.data.authors && result.data.authors.length > 0) {
+      authors = result.data.authors;
+      authorsProvider = result.provider;
       break;
     }
   }
+  if (authorsProvider) fieldAttribution.authors = authorsProvider;
 
   // Description: prefer longest
   let description: string | null = null;
-  for (const source of all) {
-    if (source.description && (!description || source.description.length > description.length)) {
-      description = source.description;
+  let descProvider: string | undefined;
+  for (const result of results) {
+    if (
+      result.data.description &&
+      (!description || result.data.description.length > description.length)
+    ) {
+      description = result.data.description;
+      descProvider = result.provider;
     }
   }
+  if (descProvider) fieldAttribution.description = descProvider;
 
   // Genres: merge and deduplicate
   const genreSet = new Set<string>();
-  for (const source of all) {
-    if (source.genres) {
-      for (const g of source.genres) genreSet.add(g);
+  const genreProviders: string[] = [];
+  for (const result of results) {
+    if (result.data.genres) {
+      for (const g of result.data.genres) genreSet.add(g);
+      if (!genreProviders.includes(result.provider)) {
+        genreProviders.push(result.provider);
+      }
     }
   }
   const genres = genreSet.size > 0 ? [...genreSet] : null;
+  if (genreProviders.length > 0) fieldAttribution.genres = genreProviders[0];
 
-  // IDs: always from the right source
-  let openLibraryId: string | null = null;
-  let googleBooksId: string | null = null;
-  for (const source of all) {
-    if (source.open_library_id && !openLibraryId)
-      openLibraryId = source.open_library_id;
-    if (source.google_books_id && !googleBooksId)
-      googleBooksId = source.google_books_id;
+  // Simple fields
+  const simpleFields: (keyof BookEdition)[] = [
+    "isbn_13",
+    "isbn_10",
+    "title",
+    "subtitle",
+    "publisher",
+    "published_year",
+    "format",
+    "page_count",
+    "cover_url",
+    "open_library_id",
+    "google_books_id",
+    "hardcover_id",
+  ];
+
+  const merged: Partial<BookEdition> = {};
+  for (const key of simpleFields) {
+    const { value, provider } = pickFirst(key);
+    if (value !== undefined) {
+      Object.assign(merged, { [key]: value });
+      if (provider) fieldAttribution[key] = provider;
+    }
   }
 
+  // JP ISBN: prefer OpenBD cover
+  const isJP = isJapaneseIsbn(isbn);
+  if (isJP) {
+    const openBdResult = results.find((r) => r.provider === "openbd");
+    if (openBdResult?.data.cover_url) {
+      merged.cover_url = openBdResult.data.cover_url;
+      fieldAttribution.cover_url = "openbd";
+    }
+  }
+
+  merged.authors = authors;
+  merged.description = description;
+  merged.genres = genres;
+  merged.language = "en"; // overridden by detectLanguage
+
+  return { data: merged, providers, fieldAttribution };
+}
+
+// --- Upsert helper ---
+
+function buildUpsertPayload(bookData: Partial<BookEdition>) {
   return {
-    isbn_13: pickFirst("isbn_13") ?? null,
-    isbn_10: pickFirst("isbn_10") ?? null,
-    title: pickFirst("title") ?? "",
-    subtitle: pickFirst("subtitle") ?? null,
-    authors,
-    publisher: pickFirst("publisher") ?? null,
-    published_year: pickFirst("published_year") ?? null,
-    language: "en", // will be overridden by detectLanguage
-    format: pickFirst("format") ?? null,
-    page_count: pickFirst("page_count") ?? null,
-    cover_url: pickFirst("cover_url") ?? null,
-    open_library_id: openLibraryId,
-    google_books_id: googleBooksId,
-    description,
-    genres,
+    isbn_13: bookData.isbn_13 ?? null,
+    isbn_10: bookData.isbn_10 ?? null,
+    title: bookData.title,
+    subtitle: bookData.subtitle ?? null,
+    authors: bookData.authors ?? [],
+    publisher: bookData.publisher ?? null,
+    published_year: bookData.published_year ?? null,
+    language: bookData.language ?? "en",
+    format: bookData.format ?? null,
+    page_count: bookData.page_count ?? null,
+    cover_url: bookData.cover_url ?? null,
+    open_library_id: bookData.open_library_id ?? null,
+    google_books_id: bookData.google_books_id ?? null,
+    hardcover_id: bookData.hardcover_id ?? null,
+    description: bookData.description ?? null,
+    genres: bookData.genres ?? null,
+    fetched_at: new Date().toISOString(),
   };
 }
 
-// --- Fetchers ---
-
-async function fetchOpenLibrary(
-  isbn: string
-): Promise<Partial<BookEdition> | null> {
-  try {
-    const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
-    if (!res.ok) return null;
-
-    const data: OpenLibraryEdition = await res.json();
-
-    let description: string | null = null;
-    let subjects: string[] | null = null;
-    let authorNames: string[] = [];
-
-    // Fetch work data for description
-    if (data.works && data.works.length > 0) {
-      const workKey = data.works[0].key;
-      try {
-        const workRes = await fetch(`https://openlibrary.org${workKey}.json`);
-        if (workRes.ok) {
-          const workData: OpenLibraryWork = await workRes.json();
-          description =
-            typeof workData.description === "string"
-              ? workData.description
-              : workData.description?.value ?? null;
-          subjects = workData.subjects?.slice(0, 10) ?? null;
-        }
-      } catch {
-        // Ignore work fetch failures
-      }
-    }
-
-    // Fetch author names with 5s timeout per author
-    if (data.authors && data.authors.length > 0) {
-      const authorPromises = data.authors.map(async (a) => {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
-          const authorRes = await fetch(
-            `https://openlibrary.org${a.key}.json`,
-            { signal: controller.signal }
-          );
-          clearTimeout(timeout);
-          if (authorRes.ok) {
-            const authorData = await authorRes.json();
-            return authorData.name as string;
-          }
-        } catch {
-          // Ignore author fetch failures
-        }
-        return null;
-      });
-      const results = await Promise.all(authorPromises);
-      authorNames = results.filter((n): n is string => n !== null);
-    }
-
-    const publishedYear = data.publish_date
-      ? parseInt(data.publish_date.match(/\d{4}/)?.[0] ?? "", 10) || null
-      : null;
-
-    const format = data.physical_format?.toLowerCase() ?? null;
-    const normalizedFormat =
-      format?.includes("hardcover") || format?.includes("hardback")
-        ? "hardcover"
-        : format?.includes("paperback")
-          ? "paperback"
-          : format?.includes("mass market")
-            ? "mass_market"
-            : format
-              ? "other"
-              : null;
-
-    // Map OL language codes
-    const rawLang =
-      data.languages?.[0]?.key?.replace("/languages/", "") ?? null;
-
-    return {
-      isbn_13: data.isbn_13?.[0] ?? null,
-      isbn_10: data.isbn_10?.[0] ?? null,
-      title: data.title ?? "",
-      subtitle: data.subtitle ?? null,
-      authors: authorNames,
-      publisher: data.publishers?.[0] ?? null,
-      published_year: publishedYear,
-      language: rawLang ?? "en",
-      format: normalizedFormat,
-      page_count: data.number_of_pages ?? null,
-      cover_url: `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`,
-      open_library_id: data.key ?? null,
-      description,
-      genres: subjects,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function fetchGoogleBooks(
-  isbn: string
-): Promise<Partial<BookEdition> | null> {
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
-    );
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (!data.items || data.items.length === 0) return null;
-
-    const volume: GoogleBooksVolume = data.items[0];
-    const info = volume.volumeInfo;
-
-    const isbn13 =
-      info.industryIdentifiers?.find((i) => i.type === "ISBN_13")
-        ?.identifier ?? null;
-    const isbn10 =
-      info.industryIdentifiers?.find((i) => i.type === "ISBN_10")
-        ?.identifier ?? null;
-
-    const publishedYear = info.publishedDate
-      ? parseInt(info.publishedDate.match(/\d{4}/)?.[0] ?? "", 10) || null
-      : null;
-
-    return {
-      isbn_13: isbn13,
-      isbn_10: isbn10,
-      title: info.title ?? "",
-      subtitle: info.subtitle ?? null,
-      authors: info.authors ?? [],
-      publisher: info.publisher ?? null,
-      published_year: publishedYear,
-      language: info.language ?? "en",
-      page_count: info.pageCount ?? null,
-      cover_url: info.imageLinks?.thumbnail ?? null,
-      google_books_id: volume.id,
-      description: info.description ?? null,
-      genres: info.categories ?? null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function fetchOpenBD(
-  isbn: string
-): Promise<Partial<BookEdition> | null> {
-  try {
-    const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (!data || !data[0]) return null;
-
-    const summary = data[0].summary;
-    if (!summary) return null;
-
-    // Parse authors — split on "／" and commas
-    const authorStr: string = summary.author || "";
-    const authors = authorStr
-      .split(/[／,、]/)
-      .map((a: string) => a.trim())
-      .filter((a: string) => a.length > 0);
-
-    // Parse pubdate (YYYYMMDD or YYYY-MM etc)
-    let publishedYear: number | null = null;
-    if (summary.pubdate) {
-      const yearMatch = summary.pubdate.match(/\d{4}/);
-      if (yearMatch) publishedYear = parseInt(yearMatch[0], 10) || null;
-    }
-
-    return {
-      isbn_13: summary.isbn || null,
-      title: summary.title || "",
-      authors,
-      publisher: summary.publisher || null,
-      published_year: publishedYear,
-      language: "ja",
-      cover_url: summary.cover || null,
-      description: null,
-      genres: null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function fetchHardcover(
-  isbn: string
-): Promise<Partial<BookEdition> | null> {
-  try {
-    const res = await fetch("/api/hardcover", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isbn }),
-    });
-
-    if (!res.ok) return null;
-
-    const json = await res.json();
-    const book = json?.data?.books?.[0];
-    if (!book) return null;
-
-    // Authors from contributions
-    const authors: string[] = (book.contributions || [])
-      .map((c: { author?: { name?: string } }) => c.author?.name)
-      .filter((n: string | undefined): n is string => !!n);
-
-    // Genres from cached_tags
-    const genres: string[] | null =
-      book.cached_tags && typeof book.cached_tags === "object"
-        ? Object.values(book.cached_tags as Record<string, string>).filter(
-            (t): t is string => typeof t === "string"
-          )
-        : Array.isArray(book.cached_tags)
-          ? book.cached_tags
-          : null;
-
-    const edition = book.editions?.[0];
-
-    let publishedYear: number | null = null;
-    if (edition?.release_date) {
-      const match = edition.release_date.match(/\d{4}/);
-      if (match) publishedYear = parseInt(match[0], 10) || null;
-    }
-
-    return {
-      isbn_13: edition?.isbn_13 ?? null,
-      isbn_10: edition?.isbn_10 ?? null,
-      title: book.title ?? "",
-      authors,
-      description: book.description ?? null,
-      genres,
-      cover_url: book.cover_image_url ?? null,
-      page_count: edition?.pages ?? null,
-      published_year: publishedYear,
-    };
-  } catch {
-    return null;
-  }
-}
-
-// --- Main lookup ---
+// --- Public API ---
 
 export async function lookupByIsbn(
   isbn: string,
@@ -446,44 +242,18 @@ export async function lookupByIsbn(
     return cached as BookEdition;
   }
 
-  // Determine source order based on ISBN
-  const isJP = isJapaneseIsbn(isbn);
+  const results = await fetchFromProviders(isbn);
+  if (results.length === 0) return null;
 
-  type Fetcher = (isbn: string) => Promise<Partial<BookEdition> | null>;
-  const fetcherChain: Fetcher[] = isJP
-    ? [fetchOpenBD, fetchHardcover, fetchOpenLibrary, fetchGoogleBooks]
-    : [fetchOpenLibrary, fetchGoogleBooks, fetchHardcover];
+  const { data: bookData } = mergeProviderResults(results, isbn);
 
-  const results: (Partial<BookEdition> | null)[] = [];
-
-  for (const fetcher of fetcherChain) {
-    const result = await fetcher(isbn);
-    results.push(result);
-
-    // Short-circuit if first source returns complete data
-    if (results.length === 1 && isComplete(result)) {
-      break;
-    }
-  }
-
-  // Merge all results
-  const [first, ...rest] = results;
-  const bookData = mergeBookData(first ?? null, ...rest);
-
-  if (!bookData.title) {
-    return null;
-  }
+  if (!bookData.title) return null;
 
   // Fix language detection
-  bookData.language = detectLanguage(isbn, results);
-
-  // For JP ISBNs, prefer OpenBD cover
-  if (isJP) {
-    const openBdResult = results[0]; // OpenBD is first for JP
-    if (openBdResult?.cover_url) {
-      bookData.cover_url = openBdResult.cover_url;
-    }
-  }
+  bookData.language = detectLanguage(
+    isbn,
+    results.map((r) => r.data)
+  );
 
   // Ensure we have the ISBN we searched with
   if (!bookData.isbn_13 && isbn.length === 13) {
@@ -494,59 +264,17 @@ export async function lookupByIsbn(
   }
 
   // Upsert into book_editions
+  const payload = buildUpsertPayload(bookData);
   const { data: upserted, error } = await supabase
     .from("book_editions")
-    .upsert(
-      {
-        isbn_13: bookData.isbn_13 ?? null,
-        isbn_10: bookData.isbn_10 ?? null,
-        title: bookData.title,
-        subtitle: bookData.subtitle ?? null,
-        authors: bookData.authors ?? [],
-        publisher: bookData.publisher ?? null,
-        published_year: bookData.published_year ?? null,
-        language: bookData.language ?? "en",
-        format: bookData.format ?? null,
-        page_count: bookData.page_count ?? null,
-        cover_url: bookData.cover_url ?? null,
-        open_library_id: bookData.open_library_id ?? null,
-        google_books_id: bookData.google_books_id ?? null,
-        description: bookData.description ?? null,
-        genres: bookData.genres ?? null,
-      },
-      {
-        onConflict: "isbn_13",
-      }
-    )
+    .upsert(payload, { onConflict: "isbn_13" })
     .select()
     .single();
 
   if (error || !upserted) {
-    // If isbn_13 conflict failed, try isbn_10
     const { data: upserted2 } = await supabase
       .from("book_editions")
-      .upsert(
-        {
-          isbn_13: bookData.isbn_13 ?? null,
-          isbn_10: bookData.isbn_10 ?? null,
-          title: bookData.title,
-          subtitle: bookData.subtitle ?? null,
-          authors: bookData.authors ?? [],
-          publisher: bookData.publisher ?? null,
-          published_year: bookData.published_year ?? null,
-          language: bookData.language ?? "en",
-          format: bookData.format ?? null,
-          page_count: bookData.page_count ?? null,
-          cover_url: bookData.cover_url ?? null,
-          open_library_id: bookData.open_library_id ?? null,
-          google_books_id: bookData.google_books_id ?? null,
-          description: bookData.description ?? null,
-          genres: bookData.genres ?? null,
-        },
-        {
-          onConflict: "isbn_10",
-        }
-      )
+      .upsert(payload, { onConflict: "isbn_10" })
       .select()
       .single();
 
@@ -554,6 +282,151 @@ export async function lookupByIsbn(
   }
 
   return upserted as BookEdition;
+}
+
+export async function lookupByIsbnWithProviders(
+  isbn: string,
+  supabase: SupabaseClient
+): Promise<{ edition: BookEdition; providers: string[] } | null> {
+  // Check cache first
+  const { data: cached } = await supabase
+    .from("book_editions")
+    .select("*")
+    .or(`isbn_13.eq.${isbn},isbn_10.eq.${isbn}`)
+    .limit(1)
+    .single();
+
+  if (cached) {
+    // Determine which providers have data based on IDs and ISBN prefix
+    const providers: string[] = [];
+    const cachedEdition = cached as BookEdition;
+    if (cachedEdition.open_library_id) providers.push("openlibrary");
+    if (cachedEdition.google_books_id) providers.push("google");
+    if (cachedEdition.hardcover_id) providers.push("hardcover");
+    if (cachedEdition.language === "ja" || (cachedEdition.isbn_13 && cachedEdition.isbn_13.startsWith("9784"))) {
+      providers.push("openbd");
+    }
+    if (providers.length === 0) providers.push("openlibrary");
+    return { edition: cachedEdition, providers };
+  }
+
+  const results = await fetchFromProviders(isbn);
+  if (results.length === 0) return null;
+
+  const { data: bookData, providers } = mergeProviderResults(results, isbn);
+
+  if (!bookData.title) return null;
+
+  bookData.language = detectLanguage(
+    isbn,
+    results.map((r) => r.data)
+  );
+
+  if (!bookData.isbn_13 && isbn.length === 13) {
+    bookData.isbn_13 = isbn;
+  }
+  if (!bookData.isbn_10 && isbn.length === 10) {
+    bookData.isbn_10 = isbn;
+  }
+
+  const payload = buildUpsertPayload(bookData);
+  const { data: upserted, error } = await supabase
+    .from("book_editions")
+    .upsert(payload, { onConflict: "isbn_13" })
+    .select()
+    .single();
+
+  if (error || !upserted) {
+    const { data: upserted2 } = await supabase
+      .from("book_editions")
+      .upsert(payload, { onConflict: "isbn_10" })
+      .select()
+      .single();
+
+    if (!upserted2) return null;
+    return { edition: upserted2 as BookEdition, providers };
+  }
+
+  return { edition: upserted as BookEdition, providers };
+}
+
+export async function searchByTitle(
+  query: string
+): Promise<ProviderResult[]> {
+  const searchProviders = getSearchProviders();
+
+  const settled = await Promise.allSettled(
+    searchProviders.map((p) => p.searchByTitle!(query))
+  );
+
+  const allResults: ProviderResult[] = [];
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      allResults.push(...result.value);
+    }
+  }
+
+  // Dedupe by ISBN (prefer higher confidence)
+  const seen = new Map<string, ProviderResult>();
+  const noIsbn: ProviderResult[] = [];
+
+  for (const r of allResults) {
+    const isbn = r.data.isbn_13 || r.data.isbn_10;
+    if (!isbn) {
+      noIsbn.push(r);
+      continue;
+    }
+    const existing = seen.get(isbn);
+    if (!existing || r.confidence > existing.confidence) {
+      seen.set(isbn, r);
+    }
+  }
+
+  const deduped = [...seen.values(), ...noIsbn];
+
+  // Sort by confidence descending
+  deduped.sort((a, b) => b.confidence - a.confidence);
+
+  return deduped;
+}
+
+export async function fetchFieldOptions(
+  isbn: string
+): Promise<Record<string, FieldOption[]>> {
+  const results = await fetchFromProviders(isbn);
+
+  const fields = [
+    "title",
+    "authors",
+    "cover_url",
+    "description",
+    "publisher",
+    "published_year",
+    "page_count",
+    "genres",
+    "format",
+  ] as const;
+
+  const options: Record<string, FieldOption[]> = {};
+
+  for (const field of fields) {
+    const fieldOptions: FieldOption[] = [];
+    for (const result of results) {
+      const val = result.data[field];
+      if (val === null || val === undefined || val === "") continue;
+      if (Array.isArray(val) && val.length === 0) continue;
+      fieldOptions.push({
+        provider: result.provider,
+        providerName: result.providerName,
+        value: val,
+      });
+    }
+    if (fieldOptions.length > 0) {
+      options[field] = fieldOptions;
+    }
+  }
+
+  return options;
 }
 
 // Re-lookup a single edition, bypassing cache, and update the DB row
@@ -564,31 +437,17 @@ export async function refreshEdition(
   const isbn = edition.isbn_13 || edition.isbn_10;
   if (!isbn) return null;
 
-  const isJP = isJapaneseIsbn(isbn);
+  const results = await fetchFromProviders(isbn);
+  if (results.length === 0) return null;
 
-  type Fetcher = (isbn: string) => Promise<Partial<BookEdition> | null>;
-  const fetcherChain: Fetcher[] = isJP
-    ? [fetchOpenBD, fetchHardcover, fetchOpenLibrary, fetchGoogleBooks]
-    : [fetchOpenLibrary, fetchGoogleBooks, fetchHardcover];
-
-  const results: (Partial<BookEdition> | null)[] = [];
-
-  for (const fetcher of fetcherChain) {
-    const result = await fetcher(isbn);
-    results.push(result);
-    if (results.length === 1 && isComplete(result)) break;
-  }
-
-  const [first, ...rest] = results;
-  const bookData = mergeBookData(first ?? null, ...rest);
+  const { data: bookData } = mergeProviderResults(results, isbn);
 
   if (!bookData.title) return null;
 
-  bookData.language = detectLanguage(isbn, results);
-
-  if (isJP && results[0]?.cover_url) {
-    bookData.cover_url = results[0].cover_url;
-  }
+  bookData.language = detectLanguage(
+    isbn,
+    results.map((r) => r.data)
+  );
 
   const { data: updated } = await supabase
     .from("book_editions")
@@ -607,6 +466,7 @@ export async function refreshEdition(
       cover_url: bookData.cover_url ?? edition.cover_url,
       open_library_id: bookData.open_library_id ?? edition.open_library_id,
       google_books_id: bookData.google_books_id ?? edition.google_books_id,
+      hardcover_id: bookData.hardcover_id ?? edition.hardcover_id,
       description: bookData.description ?? edition.description,
       genres: bookData.genres ?? edition.genres,
     })

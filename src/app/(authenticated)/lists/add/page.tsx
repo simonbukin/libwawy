@@ -5,6 +5,8 @@ import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import ProviderBadge from "@/components/provider-badge";
+import type { ProviderResult } from "@/lib/services/providers/types";
 import type { BookEdition, BookWithEdition, List } from "@/lib/types/book";
 
 type Mode = "search" | "library" | "create-list";
@@ -20,7 +22,7 @@ export default function AddToListPage() {
   const [selectedListId, setSelectedListId] = useState<string>(preselectedListId || "");
   const [isbn, setIsbn] = useState("");
   const [titleQuery, setTitleQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<BookEdition[]>([]);
+  const [searchResults, setSearchResults] = useState<ProviderResult[]>([]);
   const [libraryBooks, setLibraryBooks] = useState<BookWithEdition[]>([]);
   const [lookingUp, setLookingUp] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -77,7 +79,12 @@ export default function AddToListPage() {
       const cleaned = isbn.replace(/[^0-9X]/gi, "");
       const found = await lookupByIsbn(cleaned, supabase);
       if (found) {
-        setSearchResults([found]);
+        setSearchResults([{
+          provider: "lookup",
+          providerName: "ISBN Lookup",
+          confidence: 1,
+          data: found,
+        }]);
       } else {
         setError("No book found for this ISBN.");
       }
@@ -93,34 +100,10 @@ export default function AddToListPage() {
     setError("");
     setSearchResults([]);
     try {
-      const response = await fetch(
-        `https://openlibrary.org/search.json?q=${encodeURIComponent(titleQuery)}&limit=8&fields=key,title,author_name,first_publish_year,cover_i,isbn`
-      );
-      const data = await response.json();
-      if (data.docs?.length > 0) {
-        const editions: BookEdition[] = data.docs.map(
-          (doc: { key: string; title: string; author_name?: string[]; first_publish_year?: number; cover_i?: number; isbn?: string[] }) => ({
-            id: doc.key,
-            isbn_13: doc.isbn?.find((i: string) => i.length === 13) || null,
-            isbn_10: doc.isbn?.find((i: string) => i.length === 10) || null,
-            title: doc.title,
-            subtitle: null,
-            authors: doc.author_name || [],
-            publisher: null,
-            published_year: doc.first_publish_year || null,
-            language: "en",
-            format: null,
-            page_count: null,
-            cover_url: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null,
-            open_library_id: doc.key,
-            google_books_id: null,
-            description: null,
-            genres: null,
-            search_vector: null,
-            fetched_at: new Date().toISOString(),
-          })
-        );
-        setSearchResults(editions);
+      const { searchByTitle } = await import("@/lib/services/book-lookup");
+      const results = await searchByTitle(titleQuery.trim());
+      if (results.length > 0) {
+        setSearchResults(results);
       } else {
         setError("No books found.");
       }
@@ -130,33 +113,36 @@ export default function AddToListPage() {
     setSearching(false);
   };
 
-  const addEditionToList = async (edition: BookEdition) => {
+  const addEditionToList = async (result: ProviderResult) => {
     if (!selectedListId) {
       setError("Please select a list first.");
       return;
     }
-    setAdding(edition.id);
+    const edition = result.data as BookEdition;
+    const resultId = edition.id || result.data.open_library_id || `${result.provider}-${result.data.isbn_13 || result.data.title}`;
+    setAdding(resultId);
     setError("");
     setSuccess("");
     const supabase = createClient();
 
-    let editionId = edition.id;
+    let editionId: string | undefined = edition.id || undefined;
 
-    // If from Open Library search, insert edition first
-    if (edition.id.startsWith("/works/")) {
+    // If from search (not yet in our DB), insert edition first
+    if (!editionId || editionId.startsWith("/works/")) {
       const { data: newEdition } = await supabase
         .from("book_editions")
         .insert({
-          isbn_13: edition.isbn_13,
-          isbn_10: edition.isbn_10,
-          title: edition.title,
-          subtitle: edition.subtitle,
-          authors: edition.authors,
-          publisher: edition.publisher,
-          published_year: edition.published_year,
-          language: edition.language,
-          cover_url: edition.cover_url,
-          open_library_id: edition.open_library_id,
+          isbn_13: result.data.isbn_13 ?? null,
+          isbn_10: result.data.isbn_10 ?? null,
+          title: result.data.title ?? "",
+          subtitle: result.data.subtitle ?? null,
+          authors: result.data.authors ?? [],
+          publisher: result.data.publisher ?? null,
+          published_year: result.data.published_year ?? null,
+          language: result.data.language ?? "en",
+          cover_url: result.data.cover_url ?? null,
+          open_library_id: result.data.open_library_id ?? null,
+          google_books_id: result.data.google_books_id ?? null,
         })
         .select()
         .single();
@@ -169,12 +155,14 @@ export default function AddToListPage() {
       editionId = newEdition.id;
     }
 
+    const finalEditionId = editionId as string;
+
     // Check if already on this list
     const { data: existing } = await supabase
       .from("list_items")
       .select("id")
       .eq("list_id", selectedListId)
-      .eq("edition_id", editionId)
+      .eq("edition_id", finalEditionId)
       .limit(1)
       .single();
 
@@ -186,7 +174,7 @@ export default function AddToListPage() {
 
     const { error: insertErr } = await supabase.from("list_items").insert({
       list_id: selectedListId,
-      edition_id: editionId,
+      edition_id: finalEditionId,
     });
 
     if (insertErr) {
@@ -445,34 +433,43 @@ export default function AddToListPage() {
               {searchResults.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-muted">Results</h3>
-                  {searchResults.map((edition) => (
-                    <div key={edition.id} className="bg-card rounded-2xl border border-border shadow-sm p-4 flex gap-3">
-                      <div className="w-12 h-16 rounded-lg overflow-hidden bg-hover flex-shrink-0">
-                        {edition.cover_url ? (
-                          <img src={edition.cover_url} alt={edition.title} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-lavender/20">
-                            <span className="text-lavender text-sm font-bold">{edition.title.charAt(0)}</span>
-                          </div>
-                        )}
+                  {searchResults.map((result, idx) => {
+                    const edition = result.data;
+                    const resultId = (edition as BookEdition).id || result.data.open_library_id || `${result.provider}-${result.data.isbn_13 || result.data.title}`;
+                    return (
+                      <div key={resultId || idx} className="bg-card rounded-2xl border border-border shadow-sm p-4 flex gap-3">
+                        <div className="w-12 h-16 rounded-lg overflow-hidden bg-hover flex-shrink-0">
+                          {edition.cover_url ? (
+                            <img src={edition.cover_url} alt={edition.title || ""} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-lavender/20">
+                              <span className="text-lavender text-sm font-bold">{(edition.title || "?").charAt(0)}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-charcoal line-clamp-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+                            {edition.title}
+                          </h4>
+                          <p className="text-xs text-muted line-clamp-1">
+                            {edition.authors?.join(", ") || "Unknown author"}
+                          </p>
+                          {result.provider !== "lookup" && (
+                            <div className="mt-1">
+                              <ProviderBadge providers={[result.provider]} />
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => addEditionToList(result)}
+                          disabled={adding === resultId}
+                          className="self-center bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-xs font-medium py-1.5 px-3 rounded-full transition-all"
+                        >
+                          {adding === resultId ? "Adding..." : "Add"}
+                        </button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-semibold text-charcoal line-clamp-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
-                          {edition.title}
-                        </h4>
-                        <p className="text-xs text-muted line-clamp-1">
-                          {edition.authors?.join(", ") || "Unknown author"}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => addEditionToList(edition)}
-                        disabled={adding === edition.id}
-                        className="self-center bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-xs font-medium py-1.5 px-3 rounded-full transition-all"
-                      >
-                        {adding === edition.id ? "Adding..." : "Add"}
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>

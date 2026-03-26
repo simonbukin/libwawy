@@ -5,8 +5,8 @@ import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import Scanner from "@/components/scanner";
 import Link from "next/link";
+import ProviderBadge from "@/components/provider-badge";
 import type { BookEdition, BookWithEdition } from "@/lib/types/book";
-// lookupByIsbn is dynamically imported in lookupIsbn callback
 
 interface ListMatch {
   listName: string;
@@ -26,6 +26,7 @@ export default function ScanPage() {
   const [scanState, setScanState] = useState<ScanState>("scanning");
   const [scannedIsbn, setScannedIsbn] = useState<string>("");
   const [edition, setEdition] = useState<BookEdition | null>(null);
+  const [providers, setProviders] = useState<string[]>([]);
   const [existingBook, setExistingBook] = useState<BookWithEdition | null>(null);
   const [listMatches, setListMatches] = useState<ListMatch[]>([]);
   const [similarBook, setSimilarBook] = useState<SimilarBook | null>(null);
@@ -45,17 +46,18 @@ export default function ScanPage() {
 
       try {
         // Use the centralized lookup service (checks DB cache, then multi-source API chain)
-        const { lookupByIsbn } = await import("@/lib/services/book-lookup");
-        const lookedUp = await lookupByIsbn(isbn, supabase);
+        const { lookupByIsbnWithProviders } = await import("@/lib/services/book-lookup");
+        const result = await lookupByIsbnWithProviders(isbn, supabase);
 
-        if (!lookedUp) {
+        if (!result) {
           setScanState("error");
           setErrorMessage("Book not found. Try adding it manually.");
           return;
         }
 
-        setEdition(lookedUp);
-        const existingEdition = lookedUp;
+        setEdition(result.edition);
+        setProviders(result.providers);
+        const existingEdition = result.edition;
 
         // Check if already in library
         const { data: libraryBook } = await supabase
@@ -158,11 +160,14 @@ export default function ScanPage() {
     setScanState("scanning");
     setScannedIsbn("");
     setEdition(null);
+    setProviders([]);
     setExistingBook(null);
     setListMatches([]);
     setSimilarBook(null);
     setErrorMessage("");
     setAddedBookId(null);
+    setAdding(false);
+    setCameraFailed(false);
   };
 
   return (
@@ -327,6 +332,11 @@ export default function ScanPage() {
                   {edition.publisher ? `${edition.publisher}, ` : ""}
                   {edition.published_year}
                 </p>
+              )}
+              {providers.length > 0 && (
+                <div className="mt-1.5">
+                  <ProviderBadge providers={providers} />
+                </div>
               )}
             </div>
           </div>

@@ -58,6 +58,7 @@ export interface BookEdition {
   cover_url: string | null;
   open_library_id: string | null;
   google_books_id: string | null;
+  hardcover_id: string | null;
   description: string | null;
   genres: string[] | null;
   search_vector: string | null;
