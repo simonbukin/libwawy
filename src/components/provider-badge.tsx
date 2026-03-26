@@ -15,6 +15,14 @@ const PROVIDER_CONFIG: Record<string, { label: string; classes: string }> = {
     label: "OpenBD",
     classes: "bg-peach/20 text-peach-dark",
   },
+  goodreads: {
+    label: "GoodReads",
+    classes: "bg-pink/20 text-pink-dark",
+  },
+  amazon: {
+    label: "Amazon",
+    classes: "bg-peach/20 text-peach-dark",
+  },
 };
 
 export default function ProviderBadge({

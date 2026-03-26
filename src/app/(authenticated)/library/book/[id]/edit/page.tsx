@@ -153,11 +153,20 @@ export default function BookEditPage() {
     setFetchingMetadata(false);
   }, [book]);
 
+  const editionDebounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingEditionFields = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      Object.values(editionDebounceTimers.current).forEach(clearTimeout);
+    };
+  }, []);
+
   const updateEditionField = useCallback(
-    async (field: string, value: unknown) => {
+    (field: string, value: unknown) => {
       if (!book) return;
 
-      // Update local state
+      // Update local state immediately
       setBook((prev) =>
         prev
           ? {
@@ -167,29 +176,47 @@ export default function BookEditPage() {
           : prev
       );
 
-      // Save to DB
-      setSaveStatus("saving");
-      try {
-        const supabase = createClient();
-        const { error } = await supabase
-          .from("book_editions")
-          .update({ [field]: value })
-          .eq("id", book.book_editions.id);
-
-        if (error) {
-          setSaveStatus("error");
-          if (statusTimer.current) clearTimeout(statusTimer.current);
-          statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
-        } else {
-          setSaveStatus("saved");
-          if (statusTimer.current) clearTimeout(statusTimer.current);
-          statusTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
-        }
-      } catch {
-        setSaveStatus("error");
-        if (statusTimer.current) clearTimeout(statusTimer.current);
-        statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
+      // Clear existing debounce for this field
+      if (editionDebounceTimers.current[field]) {
+        clearTimeout(editionDebounceTimers.current[field]);
       }
+
+      if (statusTimer.current) {
+        clearTimeout(statusTimer.current);
+        statusTimer.current = null;
+      }
+
+      setSaveStatus("saving");
+      pendingEditionFields.current.add(field);
+
+      // Debounce the DB save
+      editionDebounceTimers.current[field] = setTimeout(async () => {
+        try {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("book_editions")
+            .update({ [field]: value })
+            .eq("id", book.book_editions.id);
+
+          pendingEditionFields.current.delete(field);
+
+          if (pendingEditionFields.current.size === 0) {
+            if (error) {
+              setSaveStatus("error");
+              statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
+            } else {
+              setSaveStatus("saved");
+              statusTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
+            }
+          }
+        } catch {
+          pendingEditionFields.current.delete(field);
+          if (pendingEditionFields.current.size === 0) {
+            setSaveStatus("error");
+            statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
+          }
+        }
+      }, 500);
     },
     [book]
   );

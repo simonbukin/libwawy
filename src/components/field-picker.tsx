@@ -8,9 +8,22 @@ const PROVIDER_COLORS: Record<string, string> = {
   google: "bg-slate/20 text-slate",
   hardcover: "bg-lavender/20 text-lavender-dark",
   openbd: "bg-peach/20 text-peach-dark",
+  goodreads: "bg-pink/20 text-pink-dark",
+  amazon: "bg-peach/20 text-peach-dark",
 };
 
 function formatValue(value: unknown, field: string): string {
+  if (value === null || value === undefined) return "";
+  if (field === "authors" && Array.isArray(value)) {
+    return value.join(", ");
+  }
+  if (field === "genres" && Array.isArray(value)) {
+    return value.join(", ");
+  }
+  return String(value);
+}
+
+function formatPreview(value: unknown, field: string): string {
   if (value === null || value === undefined) return "—";
   if (field === "authors" && Array.isArray(value)) {
     return value.join(", ");
@@ -22,6 +35,21 @@ function formatValue(value: unknown, field: string): string {
     return value.length > 100 ? value.slice(0, 100) + "…" : value;
   }
   return String(value);
+}
+
+/** Parse a comma-separated string back to an array */
+function parseArray(str: string): string[] {
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/** Parse a numeric string, returning null for empty/invalid */
+function parseNumber(str: string): number | null {
+  if (!str.trim()) return null;
+  const n = parseInt(str, 10);
+  return isNaN(n) ? null : n;
 }
 
 export default function FieldPicker({
@@ -40,6 +68,11 @@ export default function FieldPicker({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  const isArrayField = field === "authors" || field === "genres";
+  const isNumberField = field === "published_year" || field === "page_count";
+  const isTextArea = field === "description";
+  const isCover = field === "cover_url";
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
@@ -52,31 +85,79 @@ export default function FieldPicker({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const hasAlternatives = options.length > 1 || (options.length === 1 && formatValue(options[0].value, field) !== formatValue(currentValue, field));
+  const hasAlternatives =
+    options.length > 1 ||
+    (options.length === 1 &&
+      formatPreview(options[0].value, field) !==
+        formatPreview(currentValue, field));
+
+  const handleTextChange = (raw: string) => {
+    if (isArrayField) {
+      onPick(parseArray(raw));
+    } else if (isNumberField) {
+      onPick(parseNumber(raw));
+    } else {
+      onPick(raw || null);
+    }
+  };
+
+  const inputClasses =
+    "w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all";
 
   return (
     <div className="relative" ref={ref}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <label className="text-xs text-muted mb-0.5 block">{label}</label>
-          {field === "cover_url" && currentValue ? (
-            <div className="w-12 h-16 rounded-lg overflow-hidden bg-hover">
-              <img
-                src={String(currentValue)}
-                alt="Cover"
-                className="w-full h-full object-cover"
+          <label className="text-xs text-muted mb-1 block">{label}</label>
+
+          {isCover ? (
+            /* Cover: thumbnail + text input for URL */
+            <div className="flex items-start gap-3">
+              {typeof currentValue === "string" && currentValue && (
+                <div className="w-12 h-16 rounded-lg overflow-hidden bg-hover flex-shrink-0">
+                  <img
+                    src={String(currentValue)}
+                    alt="Cover"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              <input
+                type="text"
+                value={String(currentValue ?? "")}
+                onChange={(e) => onPick(e.target.value || null)}
+                placeholder="Cover image URL"
+                className={`${inputClasses} flex-1`}
               />
             </div>
+          ) : isTextArea ? (
+            <textarea
+              value={formatValue(currentValue, field)}
+              onChange={(e) => handleTextChange(e.target.value)}
+              placeholder={`Enter ${label.toLowerCase()}...`}
+              rows={3}
+              className={`${inputClasses} resize-none`}
+            />
           ) : (
-            <p className="text-sm text-charcoal break-words">
-              {formatValue(currentValue, field) || <span className="text-muted italic">Not set</span>}
-            </p>
+            <input
+              type={isNumberField ? "number" : "text"}
+              value={formatValue(currentValue, field)}
+              onChange={(e) => handleTextChange(e.target.value)}
+              placeholder={
+                isArrayField
+                  ? `Comma-separated ${label.toLowerCase()}`
+                  : `Enter ${label.toLowerCase()}...`
+              }
+              className={inputClasses}
+            />
           )}
         </div>
+
+        {/* Provider picker button */}
         {hasAlternatives && (
           <button
             onClick={() => setOpen(!open)}
-            className="mt-4 flex-shrink-0 w-6 h-6 rounded-full bg-lavender/10 hover:bg-lavender/20 flex items-center justify-center transition-colors"
+            className="mt-6 flex-shrink-0 w-6 h-6 rounded-full bg-lavender/10 hover:bg-lavender/20 flex items-center justify-center transition-colors"
             title="Pick from providers"
           >
             <svg
@@ -95,11 +176,11 @@ export default function FieldPicker({
         )}
       </div>
 
-      {/* Dropdown */}
+      {/* Provider options dropdown */}
       {open && (
         <div className="absolute right-0 top-full mt-1 z-20 w-72 bg-card rounded-xl border border-border shadow-lg overflow-hidden animate-fade-in">
           <div className="p-2 text-[10px] text-muted font-medium uppercase tracking-wide border-b border-border">
-            Pick {label.toLowerCase()}
+            Pick {label.toLowerCase()} from provider
           </div>
           <div className="max-h-60 overflow-y-auto">
             {options.map((opt, i) => (
@@ -111,7 +192,7 @@ export default function FieldPicker({
                 }}
                 className="w-full text-left px-3 py-2.5 hover:bg-hover transition-colors border-b border-border/50 last:border-0"
               >
-                {field === "cover_url" && opt.value ? (
+                {isCover && opt.value ? (
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-14 rounded-lg overflow-hidden bg-hover flex-shrink-0">
                       <img
@@ -129,7 +210,7 @@ export default function FieldPicker({
                 ) : (
                   <div>
                     <p className="text-sm text-charcoal mb-1">
-                      {formatValue(opt.value, field)}
+                      {formatPreview(opt.value, field)}
                     </p>
                     <span
                       className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${PROVIDER_COLORS[opt.provider] || "bg-hover text-muted"}`}

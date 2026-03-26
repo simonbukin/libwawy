@@ -3,6 +3,8 @@ const MIN_INTERVAL_MS: Record<string, number> = {
   google: 100,
   hardcover: 500,
   openbd: 0,
+  goodreads: 1000,
+  amazon: 1000,
 };
 
 const lastRequest: Record<string, number> = {};

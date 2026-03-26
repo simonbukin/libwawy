@@ -3,16 +3,20 @@ import { openLibraryProvider } from "./openlibrary";
 import { googleBooksProvider } from "./google-books";
 import { hardcoverProvider } from "./hardcover";
 import { openBDProvider } from "./openbd";
+import { goodReadsProvider } from "./goodreads";
+import { amazonProvider } from "./amazon";
 
 export const ALL_PROVIDERS: BookProvider[] = [
   openLibraryProvider,
   googleBooksProvider,
   hardcoverProvider,
   openBDProvider,
+  goodReadsProvider,
+  amazonProvider,
 ];
 
-export const DEFAULT_PRIORITY = ["openlibrary", "google", "hardcover", "openbd"];
-export const JP_PRIORITY = ["openbd", "hardcover", "openlibrary", "google"];
+export const DEFAULT_PRIORITY = ["openlibrary", "google", "goodreads", "amazon", "hardcover", "openbd"];
+export const JP_PRIORITY = ["openbd", "hardcover", "openlibrary", "google", "goodreads", "amazon"];
 
 export function getApplicableProviders(isbn: string): BookProvider[] {
   const priority = isbn.startsWith("9784") ? JP_PRIORITY : DEFAULT_PRIORITY;
@@ -25,4 +29,11 @@ export function getSearchProviders(): BookProvider[] {
   return ALL_PROVIDERS.filter((p) => p.searchByTitle !== undefined);
 }
 
-export { openLibraryProvider, googleBooksProvider, hardcoverProvider, openBDProvider };
+export {
+  openLibraryProvider,
+  googleBooksProvider,
+  hardcoverProvider,
+  openBDProvider,
+  goodReadsProvider,
+  amazonProvider,
+};
