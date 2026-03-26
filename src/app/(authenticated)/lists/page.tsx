@@ -66,7 +66,7 @@ export default function ListsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="w-8 h-8 rounded-full border-2 border-[#B8A9D4] border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-lavender border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -90,8 +90,8 @@ export default function ListsPage() {
             onClick={() => setActiveTab("mine")}
             className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
               isMineTab
-                ? "bg-[#B8A9D4] text-white"
-                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+                ? "bg-lavender text-white"
+                : "bg-card border border-border text-muted"
             }`}
             style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
           >
@@ -103,8 +103,8 @@ export default function ListsPage() {
               onClick={() => setActiveTab(m.user_id)}
               className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
                 activeTab === m.user_id
-                  ? "bg-[#B8A9D4] text-white"
-                  : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+                  ? "bg-lavender text-white"
+                  : "bg-card border border-border text-muted"
               }`}
               style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
             >
@@ -117,7 +117,7 @@ export default function ListsPage() {
       {/* Empty state */}
       {currentLists.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 rounded-full bg-[#B8A9D4]/15 flex items-center justify-center mb-4">
+          <div className="w-16 h-16 rounded-full bg-lavender/15 flex items-center justify-center mb-4">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B8A9D4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M8 6h13" />
               <path d="M8 12h13" />
@@ -133,7 +133,7 @@ export default function ListsPage() {
           >
             {isMineTab ? "No lists yet!" : `${activeDisplayName} has no lists yet`}
           </h2>
-          <p className="text-[#8A7F85] text-sm mb-6 max-w-xs">
+          <p className="text-muted text-sm mb-6 max-w-xs">
             {isMineTab ? "Create a list to organize your reading." : "Check back later!"}
           </p>
         </div>
@@ -145,7 +145,7 @@ export default function ListsPage() {
         return (
           <div
             key={list.id}
-            className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm mb-3 overflow-hidden"
+            className="bg-card rounded-2xl border border-border shadow-sm mb-3 overflow-hidden"
           >
             {/* List header */}
             <button
@@ -154,16 +154,16 @@ export default function ListsPage() {
             >
               <div className="flex items-center gap-2">
                 <h3
-                  className="text-sm font-semibold text-[#3D3539]"
+                  className="text-sm font-semibold text-charcoal"
                   style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
                 >
                   {list.name}
                 </h3>
-                <span className="text-xs text-[#8A7F85] bg-[#F8F5F0] px-2 py-0.5 rounded-full">
+                <span className="text-xs text-muted bg-hover px-2 py-0.5 rounded-full">
                   {list.list_items.length}
                 </span>
                 {list.is_default && (
-                  <span className="text-[10px] text-[#8A7F85]">default</span>
+                  <span className="text-[10px] text-muted">default</span>
                 )}
               </div>
               <svg
@@ -191,7 +191,7 @@ export default function ListsPage() {
                       href={`/lists/${list.id}`}
                       className="flex-shrink-0 w-24"
                     >
-                      <div className="w-24 h-32 rounded-lg overflow-hidden bg-[#F8F5F0] mb-1.5">
+                      <div className="w-24 h-32 rounded-lg overflow-hidden bg-hover mb-1.5">
                         {item.book_editions.cover_url ? (
                           <img
                             src={item.book_editions.cover_url}
@@ -199,9 +199,9 @@ export default function ListsPage() {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-[#B8A9D4]/20">
+                          <div className="w-full h-full flex items-center justify-center bg-lavender/20">
                             <span
-                              className="text-[#B8A9D4] text-lg font-bold"
+                              className="text-lavender text-lg font-bold"
                               style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
                             >
                               {item.book_editions.title.charAt(0)}
@@ -209,10 +209,10 @@ export default function ListsPage() {
                           </div>
                         )}
                       </div>
-                      <p className="text-xs text-[#3D3539] font-medium line-clamp-1">
+                      <p className="text-xs text-charcoal font-medium line-clamp-1">
                         {item.book_editions.title}
                       </p>
-                      <p className="text-[10px] text-[#8A7F85] line-clamp-1">
+                      <p className="text-[10px] text-muted line-clamp-1">
                         {item.book_editions.authors?.join(", ")}
                       </p>
                     </Link>
@@ -224,7 +224,7 @@ export default function ListsPage() {
             {/* Empty list */}
             {!isCollapsed && list.list_items.length === 0 && (
               <div className="px-4 pb-3">
-                <p className="text-xs text-[#8A7F85]">No books in this list yet.</p>
+                <p className="text-xs text-muted">No books in this list yet.</p>
               </div>
             )}
 
@@ -233,7 +233,7 @@ export default function ListsPage() {
               <div className="px-4 pb-3">
                 <Link
                   href={`/lists/${list.id}`}
-                  className="text-xs text-[#B8A9D4] hover:text-[#9B89BF] font-medium"
+                  className="text-xs text-lavender hover:text-lavender-dark font-medium"
                 >
                   View all →
                 </Link>
@@ -247,7 +247,7 @@ export default function ListsPage() {
       {isMineTab && (
         <Link
           href="/lists/add"
-          className="fixed bottom-24 right-5 w-14 h-14 bg-[#B8A9D4] hover:bg-[#A898C7] active:bg-[#9B89BF] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 z-30"
+          className="fixed bottom-24 right-5 w-14 h-14 bg-lavender hover:bg-lavender-hover active:bg-lavender-dark text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 z-30"
           aria-label="Add to list"
         >
           <svg

@@ -15,6 +15,15 @@
   --color-muted: #8A7F85;
   --color-card: #FFFFFF;
   --color-border: #F0EBE6;
+  --color-lavender-hover: #A898C7;
+  --color-mint-dark: #6BAF8D;
+  --color-peach-dark: #D4956F;
+  --color-pink-dark: #C4819E;
+  --color-red: #C97070;
+  --color-red-dark: #B85555;
+  --color-slate: #6B9FB8;
+  --color-slate-light: #D4E8F0;
+  --color-hover: #F8F5F0;
 }
 
 @theme inline {
@@ -32,6 +41,15 @@
   --color-muted: var(--color-muted);
   --color-card: var(--color-card);
   --color-border: var(--color-border);
+  --color-lavender-hover: var(--color-lavender-hover);
+  --color-mint-dark: var(--color-mint-dark);
+  --color-peach-dark: var(--color-peach-dark);
+  --color-pink-dark: var(--color-pink-dark);
+  --color-red: var(--color-red);
+  --color-red-dark: var(--color-red-dark);
+  --color-slate: var(--color-slate);
+  --color-slate-light: var(--color-slate-light);
+  --color-hover: var(--color-hover);
 }
 
 /* Smooth transitions globally */
@@ -125,4 +143,32 @@ button:focus-visible {
 #html5-qrcode-button-camera-start:hover,
 #html5-qrcode-button-camera-stop:hover {
   background-color: var(--color-lavender-dark) !important;
+}
+
+/* Entrance animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
 }

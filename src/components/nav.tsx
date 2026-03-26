@@ -87,8 +87,8 @@ export default function Nav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40">
-      <div className="bg-white/80 backdrop-blur-xl border-t border-[#F0EBE6]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40" aria-label="Main navigation">
+      <div className="bg-card/80 backdrop-blur-xl border-t border-border">
         <div className="flex items-center justify-around max-w-lg mx-auto px-2">
           {tabs.map((tab) => {
             const active = isActive(tab.href);
@@ -97,13 +97,13 @@ export default function Nav() {
                 key={tab.href}
                 href={tab.href}
                 className={`flex flex-col items-center gap-0.5 py-2 px-4 min-w-[64px] transition-colors duration-200 ${
-                  active ? "text-[#B8A9D4]" : "text-[#8A7F85]"
+                  active ? "text-lavender" : "text-muted"
                 }`}
               >
                 {tab.icon(active)}
                 <span
                   className={`text-[10px] font-medium ${
-                    active ? "text-[#B8A9D4]" : "text-[#8A7F85]"
+                    active ? "text-lavender" : "text-muted"
                   }`}
                 >
                   {tab.label}

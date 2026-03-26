@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import { createLibrary, joinLibrary } from "@/lib/actions/library";
@@ -43,6 +43,10 @@ export default function LibraryPage() {
   });
   const [loanedFilter, setLoanedFilter] = useState<boolean>(() => {
     if (typeof window !== "undefined") return sessionStorage.getItem("libwawy_library_loanedFilter") === "true";
+    return false;
+  });
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("libwawy_library_filtersOpen") === "true";
     return false;
   });
 
@@ -222,14 +226,14 @@ export default function LibraryPage() {
     [applyFilters, searchQuery, personFilter, statusFilter, tagFilter, sortBy]
   );
 
-  const allTags = [...new Set(books.flatMap((b) => b.tags || []))].sort();
+  const allTags = useMemo(() => [...new Set(books.flatMap((b) => b.tags || []))].sort(), [books]);
 
   if (loading || ctxLoading) {
     return (
       <div className="flex items-center justify-center py-32">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-[#B8A9D4] border-t-transparent animate-spin" />
-          <span className="text-[#8A7F85] text-sm">Loading books...</span>
+          <div className="w-8 h-8 rounded-full border-2 border-lavender border-t-transparent animate-spin" />
+          <span className="text-muted text-sm">Loading books...</span>
         </div>
       </div>
     );
@@ -265,7 +269,7 @@ export default function LibraryPage() {
   if (!libraryId) {
     return (
       <div className="flex flex-col items-center justify-center px-6 py-16">
-        <div className="w-16 h-16 rounded-2xl bg-[#B8A9D4]/15 flex items-center justify-center mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-lavender/15 flex items-center justify-center mb-4">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#B8A9D4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
           </svg>
@@ -273,7 +277,7 @@ export default function LibraryPage() {
         <h2 className="text-xl font-bold mb-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
           Welcome to libwawy
         </h2>
-        <p className="text-[#8A7F85] text-sm mb-8 text-center max-w-xs">
+        <p className="text-muted text-sm mb-8 text-center max-w-xs">
           Create a new shared library or join an existing one.
         </p>
 
@@ -281,13 +285,13 @@ export default function LibraryPage() {
           <div className="w-full max-w-xs flex flex-col gap-3">
             <button
               onClick={() => setOnboardMode("create")}
-              className="w-full bg-[#B8A9D4] hover:bg-[#A898C7] text-white font-medium py-3 rounded-2xl transition-all text-sm"
+              className="w-full bg-lavender hover:bg-lavender-hover text-white font-medium py-3 rounded-2xl transition-all text-sm"
             >
               Create a Library
             </button>
             <button
               onClick={() => setOnboardMode("join")}
-              className="w-full bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] font-medium py-3 rounded-2xl transition-all text-sm"
+              className="w-full bg-card hover:bg-hover border border-border text-charcoal font-medium py-3 rounded-2xl transition-all text-sm"
             >
               Join with Code
             </button>
@@ -296,26 +300,26 @@ export default function LibraryPage() {
 
         {onboardMode === "create" && (
           <div className="w-full max-w-xs">
-            <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-5 space-y-3">
+            <div className="bg-card rounded-2xl border border-border shadow-sm p-5 space-y-3">
               <input
                 type="text"
                 value={libName}
                 onChange={(e) => setLibName(e.target.value)}
                 placeholder="Library name (e.g. Our Bookshelf)"
-                className="w-full px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+                className="w-full px-3 py-2.5 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
               />
-              {onboardError && <p className="text-xs text-[#C97070]">{onboardError}</p>}
+              {onboardError && <p className="text-xs text-red">{onboardError}</p>}
               <button
                 onClick={handleCreate}
                 disabled={onboardLoading || !libName.trim()}
-                className="w-full bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-all text-sm"
+                className="w-full bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-all text-sm"
               >
                 {onboardLoading ? "Creating..." : "Create Library"}
               </button>
             </div>
             <button
               onClick={() => { setOnboardMode("choose"); setOnboardError(""); }}
-              className="mt-3 text-xs text-[#8A7F85] hover:text-[#3D3539] transition-colors w-full text-center"
+              className="mt-3 text-xs text-muted hover:text-charcoal transition-colors w-full text-center"
             >
               Back
             </button>
@@ -324,27 +328,27 @@ export default function LibraryPage() {
 
         {onboardMode === "join" && (
           <div className="w-full max-w-xs">
-            <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-5 space-y-3">
+            <div className="bg-card rounded-2xl border border-border shadow-sm p-5 space-y-3">
               <input
                 type="text"
                 value={joinCodeInput}
                 onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                 placeholder="Enter join code"
                 maxLength={6}
-                className="w-full px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all font-mono tracking-widest text-center"
+                className="w-full px-3 py-2.5 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all font-mono tracking-widest text-center"
               />
-              {onboardError && <p className="text-xs text-[#C97070]">{onboardError}</p>}
+              {onboardError && <p className="text-xs text-red">{onboardError}</p>}
               <button
                 onClick={handleJoin}
                 disabled={onboardLoading || !joinCodeInput.trim()}
-                className="w-full bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-all text-sm"
+                className="w-full bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-all text-sm"
               >
                 {onboardLoading ? "Joining..." : "Join Library"}
               </button>
             </div>
             <button
               onClick={() => { setOnboardMode("choose"); setOnboardError(""); }}
-              className="mt-3 text-xs text-[#8A7F85] hover:text-[#3D3539] transition-colors w-full text-center"
+              className="mt-3 text-xs text-muted hover:text-charcoal transition-colors w-full text-center"
             >
               Back
             </button>
@@ -363,125 +367,233 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* Sort control */}
-      {books.length > 0 && (
-        <div className="mb-3 flex bg-white border border-[#F0EBE6] rounded-xl p-0.5 w-fit" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
-          {([
-            { value: "added_at", label: "Recent" },
-            { value: "title", label: "Title" },
-            { value: "author", label: "Author" },
-          ] as const).map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => handleSort(opt.value)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                sortBy === opt.value
-                  ? "bg-[#B8A9D4] text-white shadow-sm"
-                  : "text-[#8A7F85] hover:text-[#3D3539]"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Unified filter bar */}
+      {books.length > 0 && (() => {
+        const activeFilterCount =
+          (personFilter ? 1 : 0) +
+          (statusFilter ? 1 : 0) +
+          (tagFilter ? 1 : 0) +
+          (loanedFilter ? 1 : 0) +
+          (sortBy !== "added_at" ? 1 : 0);
 
-      {/* Person filter pills */}
-      {members.length > 0 && books.length > 0 && (
-        <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
-          <button
-            onClick={() => handlePersonFilter(null)}
-            className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-              personFilter === null
-                ? "bg-[#B8A9D4] text-white"
-                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
-            }`}
-          >
-            All
-          </button>
-          {members.map((m) => (
-            <button
-              key={m.user_id}
-              onClick={() => handlePersonFilter(m.user_id)}
-              className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-                personFilter === m.user_id
-                  ? "bg-[#B8A9D4] text-white"
-                  : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
-              }`}
-            >
-              {m.display_name || "Unknown"}
-            </button>
-          ))}
-        </div>
-      )}
+        const filterSummaryParts: string[] = [];
+        if (statusFilter) filterSummaryParts.push(statusFilter === "dnf" ? "DNF" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1));
+        if (loanedFilter) filterSummaryParts.push("Loaned");
+        if (personFilter) {
+          const member = members.find((m) => m.user_id === personFilter);
+          if (member) filterSummaryParts.push(member.display_name || "Member");
+        }
+        if (tagFilter) filterSummaryParts.push(tagFilter);
+        if (sortBy !== "added_at") filterSummaryParts.push(`Sorted by ${sortBy === "title" ? "Title" : "Author"}`);
 
-      {/* Read status filter pills */}
-      {books.length > 0 && (
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
-          <button
-            onClick={() => { handleStatusFilter(null); if (loanedFilter) handleLoanedFilter(false); }}
-            className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-              statusFilter === null && !loanedFilter
-                ? "bg-[#B8A9D4] text-white"
-                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
-            }`}
-          >
-            All
-          </button>
-          {(["unread", "reading", "read", "dnf"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => handleStatusFilter(s)}
-              className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-                statusFilter === s
-                  ? "bg-[#B8A9D4] text-white"
-                  : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
-              }`}
-            >
-              {s === "dnf" ? "DNF" : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-          <button
-            onClick={() => handleLoanedFilter(!loanedFilter)}
-            className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-              loanedFilter
-                ? "bg-[#E8B4C8] text-white"
-                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
-            }`}
-          >
-            Loaned
-          </button>
-        </div>
-      )}
+        const handleClearAll = () => {
+          handlePersonFilter(null);
+          handleStatusFilter(null);
+          handleTagFilter(null);
+          handleLoanedFilter(false);
+          handleSort("added_at");
+        };
 
-      {/* Tag filter pills */}
-      {allTags.length > 0 && books.length > 0 && (
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
-          <button
-            onClick={() => handleTagFilter(null)}
-            className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-              tagFilter === null
-                ? "bg-[#6B9FB8] text-white"
-                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
-            }`}
-          >
-            All Tags
-          </button>
-          {allTags.map((tag) => (
+        const toggleFiltersOpen = () => {
+          const next = !filtersOpen;
+          setFiltersOpen(next);
+          sessionStorage.setItem("libwawy_library_filtersOpen", String(next));
+        };
+
+        return (
+          <div className="mb-4" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+            {/* Filter toggle button */}
             <button
-              key={tag}
-              onClick={() => handleTagFilter(tag)}
-              className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-                tagFilter === tag
-                  ? "bg-[#6B9FB8] text-white"
-                  : "bg-[#D4E8F0]/30 text-[#6B9FB8] border border-[#D4E8F0]/50"
-              }`}
+              onClick={toggleFiltersOpen}
+              className="flex items-center gap-2 text-sm font-medium text-muted hover:text-charcoal transition-colors mb-2"
             >
-              {tag}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+                <line x1="11" y1="18" x2="13" y2="18" />
+              </svg>
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-lavender text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`transition-transform duration-300 ${filtersOpen ? "rotate-180" : ""}`}
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
             </button>
-          ))}
-        </div>
-      )}
+
+            {/* Active filter summary (when collapsed) */}
+            {!filtersOpen && activeFilterCount > 0 && (
+              <p className="text-xs text-muted mb-2">{filterSummaryParts.join(" \u00b7 ")}</p>
+            )}
+
+            {/* Collapsible filter section */}
+            <div
+              className={`overflow-hidden transition-all duration-300 ${filtersOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}
+            >
+              <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-3">
+                {/* Sort row */}
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-muted font-semibold mb-1.5 block">Sort</label>
+                  <div className="flex bg-cream border border-border rounded-xl p-0.5 w-fit">
+                    {([
+                      { value: "added_at", label: "Recent" },
+                      { value: "title", label: "Title" },
+                      { value: "author", label: "Author" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => handleSort(opt.value)}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
+                          sortBy === opt.value
+                            ? "bg-lavender text-white shadow-sm"
+                            : "text-muted hover:text-charcoal"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status row */}
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-muted font-semibold mb-1.5 block">Status</label>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                    <button
+                      onClick={() => { handleStatusFilter(null); if (loanedFilter) handleLoanedFilter(false); }}
+                      className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                        statusFilter === null && !loanedFilter
+                          ? "bg-lavender text-white"
+                          : "bg-card border border-border text-muted"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {(["unread", "reading", "read", "dnf"] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => handleStatusFilter(s)}
+                        className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                          statusFilter === s
+                            ? "bg-lavender text-white"
+                            : "bg-card border border-border text-muted"
+                        }`}
+                      >
+                        {s === "dnf" ? "DNF" : s.charAt(0).toUpperCase() + s.slice(1)}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => handleLoanedFilter(!loanedFilter)}
+                      className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                        loanedFilter
+                          ? "bg-pink text-white"
+                          : "bg-card border border-border text-muted"
+                      }`}
+                    >
+                      Loaned
+                    </button>
+                  </div>
+                </div>
+
+                {/* Person row */}
+                {members.length > 0 && (
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-muted font-semibold mb-1.5 block">Person</label>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                      <button
+                        onClick={() => handlePersonFilter(null)}
+                        className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                          personFilter === null
+                            ? "bg-lavender text-white"
+                            : "bg-card border border-border text-muted"
+                        }`}
+                      >
+                        All
+                      </button>
+                      {members.map((m) => (
+                        <button
+                          key={m.user_id}
+                          onClick={() => handlePersonFilter(m.user_id)}
+                          className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                            personFilter === m.user_id
+                              ? "bg-lavender text-white"
+                              : "bg-card border border-border text-muted"
+                          }`}
+                        >
+                          {m.display_name || "Unknown"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags row */}
+                {allTags.length > 0 && (
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-muted font-semibold mb-1.5 block">Tags</label>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                      <button
+                        onClick={() => handleTagFilter(null)}
+                        className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                          tagFilter === null
+                            ? "bg-slate text-white"
+                            : "bg-card border border-border text-muted"
+                        }`}
+                      >
+                        All Tags
+                      </button>
+                      {allTags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => handleTagFilter(tag)}
+                          className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+                            tagFilter === tag
+                              ? "bg-slate text-white"
+                              : "bg-slate-light/30 text-slate border border-slate-light/50"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Clear all */}
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={handleClearAll}
+                    className="text-xs font-medium text-red hover:text-red-dark transition-colors pt-1"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Empty state */}
       {books.length === 0 && (
@@ -490,39 +602,39 @@ export default function LibraryPage() {
           <div className="mb-6 relative">
             <div className="w-48 h-32 relative">
               {/* Shelf boards */}
-              <div className="absolute bottom-0 left-0 right-0 h-2 bg-[#F0EBE6] rounded" />
-              <div className="absolute bottom-12 left-0 right-0 h-2 bg-[#F0EBE6] rounded" />
-              <div className="absolute bottom-24 left-0 right-0 h-2 bg-[#F0EBE6] rounded" />
+              <div className="absolute bottom-0 left-0 right-0 h-2 bg-border rounded" />
+              <div className="absolute bottom-12 left-0 right-0 h-2 bg-border rounded" />
+              <div className="absolute bottom-24 left-0 right-0 h-2 bg-border rounded" />
               {/* Side panels */}
-              <div className="absolute top-0 left-0 w-2 h-full bg-[#F0EBE6] rounded" />
-              <div className="absolute top-0 right-0 w-2 h-full bg-[#F0EBE6] rounded" />
+              <div className="absolute top-0 left-0 w-2 h-full bg-border rounded" />
+              <div className="absolute top-0 right-0 w-2 h-full bg-border rounded" />
               {/* A few tilted books */}
-              <div className="absolute bottom-2 left-6 w-3 h-9 bg-[#B8A9D4]/30 rounded-sm -rotate-6" />
-              <div className="absolute bottom-2 left-12 w-4 h-8 bg-[#F5C6AA]/30 rounded-sm rotate-3" />
+              <div className="absolute bottom-2 left-6 w-3 h-9 bg-lavender/30 rounded-sm -rotate-6" />
+              <div className="absolute bottom-2 left-12 w-4 h-8 bg-peach/30 rounded-sm rotate-3" />
               {/* Decorative plant */}
-              <div className="absolute bottom-14 right-6 w-3 h-6 bg-[#A8D5BA]/40 rounded-full" />
-              <div className="absolute bottom-12 right-6 w-3 h-3 bg-[#A8D5BA]/30 rounded-sm" />
+              <div className="absolute bottom-14 right-6 w-3 h-6 bg-mint/40 rounded-full" />
+              <div className="absolute bottom-12 right-6 w-3 h-3 bg-mint/30 rounded-sm" />
             </div>
           </div>
           <h2
-            className="text-lg font-semibold mb-2 text-[#3D3539]"
+            className="text-lg font-semibold mb-2 text-charcoal"
             style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
           >
             Your library is empty!
           </h2>
-          <p className="text-[#8A7F85] text-sm mb-6 max-w-xs">
+          <p className="text-muted text-sm mb-6 max-w-xs">
             Scan a book barcode to get started, or add one manually.
           </p>
           <div className="flex gap-3">
             <Link
               href="/library/scan"
-              className="bg-[#B8A9D4] hover:bg-[#A898C7] text-white font-medium py-2.5 px-5 rounded-full transition-all duration-200 text-sm"
+              className="bg-lavender hover:bg-lavender-hover text-white font-medium py-2.5 px-5 rounded-full transition-all duration-200 text-sm"
             >
               Scan a book
             </Link>
             <Link
               href="/library/add"
-              className="bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] font-medium py-2.5 px-5 rounded-full transition-all duration-200 text-sm"
+              className="bg-card hover:bg-hover border border-border text-charcoal font-medium py-2.5 px-5 rounded-full transition-all duration-200 text-sm"
             >
               Add manually
             </Link>
@@ -532,7 +644,7 @@ export default function LibraryPage() {
 
       {/* Search results info */}
       {searchQuery && books.length > 0 && (
-        <p className="text-xs text-[#8A7F85] mb-3">
+        <p className="text-xs text-muted mb-3">
           {filteredBooks.length} result{filteredBooks.length !== 1 ? "s" : ""} for &ldquo;{searchQuery}&rdquo;
         </p>
       )}
@@ -540,8 +652,14 @@ export default function LibraryPage() {
       {/* Book grid */}
       {filteredBooks.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filteredBooks.map((book) => (
-            <BookCard key={book.id} book={book} memberColor={book._memberColor} />
+          {filteredBooks.map((book, index) => (
+            <div
+              key={book.id}
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${Math.min(index, 12) * 30}ms`, animationFillMode: 'backwards' }}
+            >
+              <BookCard book={book} memberColor={book._memberColor} />
+            </div>
           ))}
         </div>
       )}
@@ -549,7 +667,7 @@ export default function LibraryPage() {
       {/* No search/filter results */}
       {(searchQuery || personFilter || statusFilter || tagFilter || loanedFilter) && filteredBooks.length === 0 && books.length > 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-[#8A7F85] text-sm">
+          <p className="text-muted text-sm">
             No books match your {searchQuery ? "search" : "filters"}.
           </p>
         </div>
@@ -558,7 +676,7 @@ export default function LibraryPage() {
       {/* FAB */}
       <Link
         href="/library/add"
-        className="fixed bottom-24 right-5 w-14 h-14 bg-[#B8A9D4] hover:bg-[#A898C7] active:bg-[#9B89BF] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 z-30"
+        className="fixed bottom-24 right-5 w-14 h-14 bg-lavender hover:bg-lavender-hover active:bg-lavender-dark text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 z-30"
         aria-label="Add book"
       >
         <svg

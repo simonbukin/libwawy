@@ -154,12 +154,12 @@ export default function Scanner({ onScan, onError }: ScannerProps) {
   }, []);
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border-2 border-[#B8A9D4]/30 bg-black">
+    <div className="relative rounded-2xl overflow-hidden border-2 border-lavender/30 bg-black">
       {/* Loading / Starting states */}
       {(status === "loading" || status === "camera_starting") && (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-[#B8A9D4] border-t-transparent animate-spin" />
-          <p className="text-[#8A7F85] text-sm">
+          <div className="w-8 h-8 rounded-full border-2 border-lavender border-t-transparent animate-spin" />
+          <p className="text-muted text-sm">
             {status === "loading" ? "Loading scanner..." : "Starting camera..."}
           </p>
         </div>
@@ -168,7 +168,7 @@ export default function Scanner({ onScan, onError }: ScannerProps) {
       {/* Error state */}
       {status === "error" && (
         <div className="flex flex-col items-center justify-center py-12 gap-3 px-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-[#F5C6AA]/20 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-peach/20 flex items-center justify-center">
             <svg
               width="24"
               height="24"
@@ -209,11 +209,11 @@ export default function Scanner({ onScan, onError }: ScannerProps) {
               className="absolute inset-0 rounded-xl"
               style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.3)" }}
             />
-            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white/80 rounded-tl-lg" />
-            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white/80 rounded-tr-lg" />
-            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white/80 rounded-bl-lg" />
-            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white/80 rounded-br-lg" />
-            <div className="absolute left-4 right-4 h-0.5 bg-[#B8A9D4]/80 animate-pulse top-1/2" />
+            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-card/80 rounded-tl-lg" />
+            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-card/80 rounded-tr-lg" />
+            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-card/80 rounded-bl-lg" />
+            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-card/80 rounded-br-lg" />
+            <div className="absolute left-4 right-4 h-0.5 bg-lavender/80 animate-pulse top-1/2" />
           </div>
           <p className="absolute bottom-4 text-white/70 text-xs">
             Align barcode within the frame

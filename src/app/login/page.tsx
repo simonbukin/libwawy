@@ -17,29 +17,29 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
       {/* Decorative book spines */}
       <div className="absolute left-6 top-1/4 flex gap-2 -rotate-6 opacity-30">
-        <div className="w-4 h-32 rounded-sm bg-[#B8A9D4]" />
-        <div className="w-5 h-28 rounded-sm bg-[#F5C6AA]" />
-        <div className="w-3 h-36 rounded-sm bg-[#A8D5BA]" />
-        <div className="w-4 h-24 rounded-sm bg-[#E8B4C8]" />
-        <div className="w-3 h-30 rounded-sm bg-[#B8A9D4]" />
+        <div className="w-4 h-32 rounded-sm bg-lavender" />
+        <div className="w-5 h-28 rounded-sm bg-peach" />
+        <div className="w-3 h-36 rounded-sm bg-mint" />
+        <div className="w-4 h-24 rounded-sm bg-pink" />
+        <div className="w-3 h-30 rounded-sm bg-lavender" />
       </div>
       <div className="absolute right-6 bottom-1/4 flex gap-2 rotate-6 opacity-30">
-        <div className="w-5 h-28 rounded-sm bg-[#E8B4C8]" />
-        <div className="w-3 h-34 rounded-sm bg-[#A8D5BA]" />
-        <div className="w-4 h-26 rounded-sm bg-[#F5C6AA]" />
-        <div className="w-5 h-32 rounded-sm bg-[#B8A9D4]" />
+        <div className="w-5 h-28 rounded-sm bg-pink" />
+        <div className="w-3 h-34 rounded-sm bg-mint" />
+        <div className="w-4 h-26 rounded-sm bg-peach" />
+        <div className="w-5 h-32 rounded-sm bg-lavender" />
       </div>
 
       {/* Decorative circles */}
-      <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-[#B8A9D4] opacity-10" />
-      <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[#F5C6AA] opacity-10" />
-      <div className="absolute top-1/3 right-1/4 w-24 h-24 rounded-full bg-[#A8D5BA] opacity-10" />
+      <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-lavender opacity-10" />
+      <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-peach opacity-10" />
+      <div className="absolute top-1/3 right-1/4 w-24 h-24 rounded-full bg-mint opacity-10" />
 
       {/* Login card */}
-      <div className="bg-white rounded-3xl shadow-sm border border-[#F0EBE6] p-10 w-full max-w-sm text-center relative z-10">
+      <div className="bg-card rounded-3xl shadow-sm border border-border p-10 w-full max-w-sm text-center relative z-10">
         {/* Book icon */}
         <div className="flex justify-center mb-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#B8A9D4]/15 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-lavender/15 flex items-center justify-center">
             <svg
               width="32"
               height="32"
@@ -64,14 +64,14 @@ export default function LoginPage() {
         >
           libwawy
         </h1>
-        <p className="text-[#8A7F85] text-sm mb-8">
+        <p className="text-muted text-sm mb-8">
           your cozy shared bookshelf
         </p>
 
         {/* Sign in button */}
         <button
           onClick={handleGoogleSignIn}
-          className="w-full flex items-center justify-center gap-3 bg-[#B8A9D4] hover:bg-[#A898C7] active:bg-[#9B89BF] text-white font-medium py-3.5 px-6 rounded-full transition-all duration-200 hover:shadow-md active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-3 bg-lavender hover:bg-lavender-hover active:bg-lavender-dark text-white font-medium py-3.5 px-6 rounded-full transition-all duration-200 hover:shadow-md active:scale-[0.98]"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path
@@ -99,10 +99,10 @@ export default function LoginPage() {
 
         {/* Subtle bottom decoration */}
         <div className="flex justify-center gap-1.5 mt-8">
-          <div className="w-2 h-2 rounded-full bg-[#B8A9D4] opacity-40" />
-          <div className="w-2 h-2 rounded-full bg-[#A8D5BA] opacity-40" />
-          <div className="w-2 h-2 rounded-full bg-[#F5C6AA] opacity-40" />
-          <div className="w-2 h-2 rounded-full bg-[#E8B4C8] opacity-40" />
+          <div className="w-2 h-2 rounded-full bg-lavender opacity-40" />
+          <div className="w-2 h-2 rounded-full bg-mint opacity-40" />
+          <div className="w-2 h-2 rounded-full bg-peach opacity-40" />
+          <div className="w-2 h-2 rounded-full bg-pink opacity-40" />
         </div>
       </div>
     </div>

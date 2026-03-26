@@ -3,12 +3,10 @@
 import { createClient } from "@/lib/supabase/server";
 
 function generateJoinCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // removed ambiguous: I,O,0,1
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
 }
 
 export async function createLibrary(name: string) {

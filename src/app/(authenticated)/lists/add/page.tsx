@@ -273,7 +273,7 @@ export default function AddToListPage() {
       <div className="flex items-center gap-3 mb-6">
         <Link
           href="/lists"
-          className="w-8 h-8 rounded-full bg-white border border-[#F0EBE6] flex items-center justify-center hover:bg-[#F8F5F0] transition-colors"
+          className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center hover:bg-hover transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3D3539" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
@@ -288,13 +288,13 @@ export default function AddToListPage() {
       </div>
 
       {/* List selector */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
-        <label className="text-xs text-[#8A7F85] mb-1.5 block">Add to</label>
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
+        <label className="text-xs text-muted mb-1.5 block">Add to</label>
         <div className="flex gap-2">
           <select
             value={selectedListId}
             onChange={(e) => setSelectedListId(e.target.value)}
-            className="flex-1 px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all appearance-none"
+            className="flex-1 px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all appearance-none"
           >
             {lists.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
@@ -302,7 +302,7 @@ export default function AddToListPage() {
           </select>
           <button
             onClick={() => setMode("create-list")}
-            className="px-3 py-2 bg-[#F8F5F0] hover:bg-[#F0EBE6] text-[#3D3539] text-sm rounded-xl transition-all"
+            className="px-3 py-2 bg-hover hover:bg-border text-charcoal text-sm rounded-xl transition-all"
           >
             New List
           </button>
@@ -311,8 +311,8 @@ export default function AddToListPage() {
 
       {/* Create list mode */}
       {mode === "create-list" && (
-        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
-          <h2 className="text-sm font-semibold text-[#3D3539] mb-3" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
+          <h2 className="text-sm font-semibold text-charcoal mb-3" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
             New List
           </h2>
           <div className="flex gap-2">
@@ -321,21 +321,21 @@ export default function AddToListPage() {
               value={newListName}
               onChange={(e) => setNewListName(e.target.value)}
               placeholder="List name..."
-              className="flex-1 px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+              className="flex-1 px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleCreateList()}
             />
             <button
               onClick={handleCreateList}
               disabled={creatingList || !newListName.trim()}
-              className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-xl transition-all"
+              className="bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-xl transition-all"
             >
               {creatingList ? "Creating..." : "Create"}
             </button>
           </div>
           <button
             onClick={() => setMode("search")}
-            className="mt-2 text-xs text-[#8A7F85] hover:text-[#3D3539]"
+            className="mt-2 text-xs text-muted hover:text-charcoal"
           >
             Cancel
           </button>
@@ -350,8 +350,8 @@ export default function AddToListPage() {
               onClick={() => setMode("search")}
               className={`flex-1 py-2 text-sm font-medium rounded-xl transition-all ${
                 mode === "search"
-                  ? "bg-[#B8A9D4] text-white"
-                  : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+                  ? "bg-lavender text-white"
+                  : "bg-card border border-border text-muted"
               }`}
             >
               Search
@@ -360,8 +360,8 @@ export default function AddToListPage() {
               onClick={() => setMode("library")}
               className={`flex-1 py-2 text-sm font-medium rounded-xl transition-all ${
                 mode === "library"
-                  ? "bg-[#B8A9D4] text-white"
-                  : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+                  ? "bg-lavender text-white"
+                  : "bg-card border border-border text-muted"
               }`}
             >
               From Library
@@ -370,23 +370,23 @@ export default function AddToListPage() {
 
           {/* Success toast */}
           {success && (
-            <div className="bg-[#A8D5BA]/15 border border-[#A8D5BA]/30 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2">
+            <div className="bg-mint/15 border border-mint/30 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6BAF8D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 6 9 17l-5-5" />
               </svg>
-              <span className="text-sm text-[#3D3539]">{success}</span>
+              <span className="text-sm text-charcoal">{success}</span>
             </div>
           )}
 
           {/* Error */}
           {error && (
-            <div className="bg-[#F5C6AA]/15 border border-[#F5C6AA]/30 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2">
+            <div className="bg-peach/15 border border-peach/30 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              <span className="text-sm text-[#3D3539]">{error}</span>
+              <span className="text-sm text-charcoal">{error}</span>
             </div>
           )}
 
@@ -394,8 +394,8 @@ export default function AddToListPage() {
           {mode === "search" && (
             <>
               {/* ISBN Lookup */}
-              <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
-                <h2 className="text-sm font-semibold text-[#3D3539] mb-3" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+              <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
+                <h2 className="text-sm font-semibold text-charcoal mb-3" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                   Look up by ISBN
                 </h2>
                 <div className="flex gap-2">
@@ -404,13 +404,13 @@ export default function AddToListPage() {
                     value={isbn}
                     onChange={(e) => setIsbn(e.target.value)}
                     placeholder="Enter ISBN..."
-                    className="flex-1 px-3.5 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-full text-sm text-[#3D3539] placeholder:text-[#8A7F85]/60 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+                    className="flex-1 px-3.5 py-2.5 bg-cream border border-border rounded-full text-sm text-charcoal placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
                     onKeyDown={(e) => e.key === "Enter" && handleIsbnLookup()}
                   />
                   <button
                     onClick={handleIsbnLookup}
                     disabled={lookingUp || !isbn.trim()}
-                    className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
+                    className="bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
                   >
                     {lookingUp ? "Looking up..." : "Look up"}
                   </button>
@@ -418,8 +418,8 @@ export default function AddToListPage() {
               </div>
 
               {/* Title search */}
-              <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
-                <h2 className="text-sm font-semibold text-[#3D3539] mb-3" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+              <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
+                <h2 className="text-sm font-semibold text-charcoal mb-3" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                   Search by title or author
                 </h2>
                 <div className="flex gap-2">
@@ -428,13 +428,13 @@ export default function AddToListPage() {
                     value={titleQuery}
                     onChange={(e) => setTitleQuery(e.target.value)}
                     placeholder="Search title or author..."
-                    className="flex-1 px-3.5 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-full text-sm text-[#3D3539] placeholder:text-[#8A7F85]/60 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+                    className="flex-1 px-3.5 py-2.5 bg-cream border border-border rounded-full text-sm text-charcoal placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
                     onKeyDown={(e) => e.key === "Enter" && handleTitleSearch()}
                   />
                   <button
                     onClick={handleTitleSearch}
                     disabled={searching || !titleQuery.trim()}
-                    className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
+                    className="bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
                   >
                     {searching ? "Searching..." : "Search"}
                   </button>
@@ -444,30 +444,30 @@ export default function AddToListPage() {
               {/* Search results */}
               {searchResults.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-[#8A7F85]">Results</h3>
+                  <h3 className="text-sm font-semibold text-muted">Results</h3>
                   {searchResults.map((edition) => (
-                    <div key={edition.id} className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 flex gap-3">
-                      <div className="w-12 h-16 rounded-lg overflow-hidden bg-[#F8F5F0] flex-shrink-0">
+                    <div key={edition.id} className="bg-card rounded-2xl border border-border shadow-sm p-4 flex gap-3">
+                      <div className="w-12 h-16 rounded-lg overflow-hidden bg-hover flex-shrink-0">
                         {edition.cover_url ? (
                           <img src={edition.cover_url} alt={edition.title} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-[#B8A9D4]/20">
-                            <span className="text-[#B8A9D4] text-sm font-bold">{edition.title.charAt(0)}</span>
+                          <div className="w-full h-full flex items-center justify-center bg-lavender/20">
+                            <span className="text-lavender text-sm font-bold">{edition.title.charAt(0)}</span>
                           </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-semibold text-[#3D3539] line-clamp-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+                        <h4 className="text-sm font-semibold text-charcoal line-clamp-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                           {edition.title}
                         </h4>
-                        <p className="text-xs text-[#8A7F85] line-clamp-1">
+                        <p className="text-xs text-muted line-clamp-1">
                           {edition.authors?.join(", ") || "Unknown author"}
                         </p>
                       </div>
                       <button
                         onClick={() => addEditionToList(edition)}
                         disabled={adding === edition.id}
-                        className="self-center bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white text-xs font-medium py-1.5 px-3 rounded-full transition-all"
+                        className="self-center bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-xs font-medium py-1.5 px-3 rounded-full transition-all"
                       >
                         {adding === edition.id ? "Adding..." : "Add"}
                       </button>
@@ -488,21 +488,21 @@ export default function AddToListPage() {
                   disabled={adding === book.id}
                   className="text-left"
                 >
-                  <div className="aspect-[2/3] rounded-lg overflow-hidden bg-[#F8F5F0] mb-1.5">
+                  <div className="aspect-[2/3] rounded-lg overflow-hidden bg-hover mb-1.5">
                     {book.book_editions.cover_url ? (
                       <img src={book.book_editions.cover_url} alt={book.book_editions.title} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-[#B8A9D4]/20">
-                        <span className="text-[#B8A9D4] text-lg font-bold" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+                      <div className="w-full h-full flex items-center justify-center bg-lavender/20">
+                        <span className="text-lavender text-lg font-bold" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                           {book.book_editions.title.charAt(0)}
                         </span>
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-[#3D3539] font-medium line-clamp-1">{book.book_editions.title}</p>
-                  <p className="text-[10px] text-[#8A7F85] line-clamp-1">{book.book_editions.authors?.join(", ")}</p>
+                  <p className="text-xs text-charcoal font-medium line-clamp-1">{book.book_editions.title}</p>
+                  <p className="text-[10px] text-muted line-clamp-1">{book.book_editions.authors?.join(", ")}</p>
                   {adding === book.id && (
-                    <span className="text-[10px] text-[#B8A9D4]">Adding...</span>
+                    <span className="text-[10px] text-lavender">Adding...</span>
                   )}
                 </button>
               ))}

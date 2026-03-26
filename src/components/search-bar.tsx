@@ -50,7 +50,7 @@ export default function SearchBar({
   return (
     <div className="relative">
       {/* Search icon */}
-      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8A7F85] pointer-events-none">
+      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
         <svg
           width="18"
           height="18"
@@ -71,14 +71,14 @@ export default function SearchBar({
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
-        className="w-full pl-10 pr-10 py-2.5 bg-white border border-[#F0EBE6] rounded-full text-sm text-[#3D3539] placeholder:text-[#8A7F85]/60 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all duration-200"
+        className="w-full pl-10 pr-10 py-2.5 bg-card border border-border rounded-full text-sm text-charcoal placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all duration-200"
       />
 
       {/* Clear button */}
       {value && (
         <button
           onClick={handleClear}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7F85] hover:text-[#3D3539] transition-colors duration-150"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal transition-colors duration-150"
         >
           <svg
             width="16"

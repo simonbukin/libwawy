@@ -37,8 +37,8 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-[#B8A9D4] border-t-transparent animate-spin" />
-          <span className="text-[#8A7F85] text-sm">Loading your library...</span>
+          <div className="w-8 h-8 rounded-full border-2 border-lavender border-t-transparent animate-spin" />
+          <span className="text-muted text-sm">Loading your library...</span>
         </div>
       </div>
     );
@@ -47,10 +47,10 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-[#FFFBF5]/80 backdrop-blur-xl border-b border-[#F0EBE6]">
+      <header className="sticky top-0 z-30 bg-cream/80 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between px-4 py-3 max-w-4xl mx-auto">
           <h1
-            className="text-lg font-bold text-[#3D3539] tracking-tight"
+            className="text-lg font-bold text-charcoal tracking-tight"
             style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
           >
             libwawy

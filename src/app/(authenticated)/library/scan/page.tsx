@@ -171,7 +171,7 @@ export default function ScanPage() {
       <div className="flex items-center gap-3 mb-4">
         <Link
           href="/library"
-          className="w-8 h-8 rounded-full bg-white border border-[#F0EBE6] flex items-center justify-center hover:bg-[#F8F5F0] transition-colors"
+          className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center hover:bg-hover transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3D3539" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
@@ -196,28 +196,28 @@ export default function ScanPage() {
           )}
 
           {cameraFailed ? (
-            <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-5 text-center">
-              <div className="w-12 h-12 rounded-full bg-[#F5C6AA]/15 flex items-center justify-center mx-auto mb-3">
+            <div className="bg-card rounded-2xl border border-border shadow-sm p-5 text-center">
+              <div className="w-12 h-12 rounded-full bg-peach/15 flex items-center justify-center mx-auto mb-3">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                   <line x1="12" y1="9" x2="12" y2="13" />
                   <line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
               </div>
-              <p className="text-sm font-medium text-[#3D3539] mb-1">Camera not available</p>
-              <p className="text-xs text-[#8A7F85] mb-4">
+              <p className="text-sm font-medium text-charcoal mb-1">Camera not available</p>
+              <p className="text-xs text-muted mb-4">
                 Check your browser&apos;s camera permissions, or type the ISBN manually below.
               </p>
             </div>
           ) : (
-            <p className="text-center text-[#8A7F85] text-xs mt-3">
+            <p className="text-center text-muted text-xs mt-3">
               Point your camera at a book&apos;s barcode
             </p>
           )}
 
           {/* Manual ISBN fallback — always visible */}
-          <div className="mt-4 bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4">
-            <p className="text-xs text-[#8A7F85] mb-2">
+          <div className="mt-4 bg-card rounded-2xl border border-border shadow-sm p-4">
+            <p className="text-xs text-muted mb-2">
               {cameraFailed ? "Enter ISBN manually:" : "Or enter ISBN manually:"}
             </p>
             <div className="flex gap-2">
@@ -227,7 +227,7 @@ export default function ScanPage() {
                 value={manualIsbn}
                 onChange={(e) => setManualIsbn(e.target.value.replace(/[^0-9Xx-]/g, ""))}
                 placeholder="978-0-123456-78-9"
-                className="flex-1 px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all font-mono"
+                className="flex-1 px-3 py-2.5 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all font-mono"
               />
               <button
                 onClick={() => {
@@ -237,7 +237,7 @@ export default function ScanPage() {
                   }
                 }}
                 disabled={!manualIsbn.replace(/[^0-9X]/gi, "").match(/^.{10,13}$/)}
-                className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-40 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
+                className="bg-lavender hover:bg-lavender-hover disabled:opacity-40 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
               >
                 Look up
               </button>
@@ -249,15 +249,15 @@ export default function ScanPage() {
       {/* Looking up */}
       {scanState === "looking_up" && (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-[#B8A9D4] border-t-transparent animate-spin" />
-          <p className="text-[#8A7F85] text-sm">Looking up ISBN {scannedIsbn}...</p>
+          <div className="w-10 h-10 rounded-full border-2 border-lavender border-t-transparent animate-spin" />
+          <p className="text-muted text-sm">Looking up ISBN {scannedIsbn}...</p>
         </div>
       )}
 
       {/* Already owned */}
       {scanState === "already_owned" && existingBook && (
-        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-[#F5C6AA]/20 flex items-center justify-center mx-auto mb-3">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-6 text-center">
+          <div className="w-12 h-12 rounded-full bg-peach/20 flex items-center justify-center mx-auto mb-3">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
@@ -267,20 +267,20 @@ export default function ScanPage() {
           <h2 className="text-lg font-semibold mb-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
             Already in your library!
           </h2>
-          <p className="text-[#8A7F85] text-sm mb-4">
+          <p className="text-muted text-sm mb-4">
             {existingBook.book_editions.title} by{" "}
             {existingBook.book_editions.authors?.join(", ")}
           </p>
           <div className="flex gap-3 justify-center">
             <Link
               href={`/library/book/${existingBook.id}`}
-              className="bg-[#B8A9D4] hover:bg-[#A898C7] text-white font-medium py-2 px-5 rounded-full transition-all text-sm"
+              className="bg-lavender hover:bg-lavender-hover text-white font-medium py-2 px-5 rounded-full transition-all text-sm"
             >
               View Book
             </Link>
             <button
               onClick={handleScanAnother}
-              className="bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] font-medium py-2 px-5 rounded-full transition-all text-sm"
+              className="bg-card hover:bg-hover border border-border text-charcoal font-medium py-2 px-5 rounded-full transition-all text-sm"
             >
               Scan Another
             </button>
@@ -290,10 +290,10 @@ export default function ScanPage() {
 
       {/* Result - ready to add */}
       {(scanState === "result") && edition && (
-        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm overflow-hidden">
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="flex gap-4 p-4">
             {/* Cover */}
-            <div className="w-20 h-28 rounded-lg overflow-hidden bg-[#F8F5F0] flex-shrink-0">
+            <div className="w-20 h-28 rounded-lg overflow-hidden bg-hover flex-shrink-0">
               {edition.cover_url ? (
                 <img
                   src={edition.cover_url}
@@ -301,8 +301,8 @@ export default function ScanPage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-[#B8A9D4]/20">
-                  <span className="text-[#B8A9D4] text-2xl font-bold" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+                <div className="w-full h-full flex items-center justify-center bg-lavender/20">
+                  <span className="text-lavender text-2xl font-bold" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                     {edition.title.charAt(0)}
                   </span>
                 </div>
@@ -311,19 +311,19 @@ export default function ScanPage() {
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-[#3D3539] line-clamp-2 mb-0.5" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+              <h3 className="font-semibold text-charcoal line-clamp-2 mb-0.5" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                 {edition.title}
               </h3>
               {edition.subtitle && (
-                <p className="text-xs text-[#8A7F85] line-clamp-1 mb-1">
+                <p className="text-xs text-muted line-clamp-1 mb-1">
                   {edition.subtitle}
                 </p>
               )}
-              <p className="text-sm text-[#8A7F85]">
+              <p className="text-sm text-muted">
                 {edition.authors?.join(", ") || "Unknown author"}
               </p>
               {edition.published_year && (
-                <p className="text-xs text-[#8A7F85] mt-0.5">
+                <p className="text-xs text-muted mt-0.5">
                   {edition.publisher ? `${edition.publisher}, ` : ""}
                   {edition.published_year}
                 </p>
@@ -333,14 +333,14 @@ export default function ScanPage() {
 
           {/* List match banner */}
           {listMatches.length > 0 && (
-            <div className="mx-4 mb-3 bg-[#E8B4C8]/15 border border-[#E8B4C8]/30 rounded-xl px-3 py-2 flex items-center gap-2">
+            <div className="mx-4 mb-3 bg-pink/15 border border-pink/30 rounded-xl px-3 py-2 flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8B4C8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 6h13" />
                 <path d="M8 12h13" />
                 <path d="M3 6h.01" />
                 <path d="M3 12h.01" />
               </svg>
-              <span className="text-xs text-[#3D3539]">
+              <span className="text-xs text-charcoal">
                 On <strong>{listMatches[0].ownerName}&apos;s</strong> {listMatches[0].listName}!
               </span>
             </div>
@@ -351,7 +351,7 @@ export default function ScanPage() {
             <button
               onClick={handleAddToLibrary}
               disabled={adding}
-              className="w-full bg-[#B8A9D4] hover:bg-[#A898C7] active:bg-[#9B89BF] disabled:opacity-60 text-white font-medium py-3 rounded-full transition-all text-sm"
+              className="w-full bg-lavender hover:bg-lavender-hover active:bg-lavender-dark disabled:opacity-60 text-white font-medium py-3 rounded-full transition-all text-sm"
             >
               {adding ? "Adding..." : "Add to Library"}
             </button>
@@ -361,8 +361,8 @@ export default function ScanPage() {
 
       {/* Similar book found */}
       {scanState === "similar_found" && edition && similarBook && (
-        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-6">
-          <div className="w-12 h-12 rounded-full bg-[#F5C6AA]/20 flex items-center justify-center mx-auto mb-3">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
+          <div className="w-12 h-12 rounded-full bg-peach/20 flex items-center justify-center mx-auto mb-3">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
@@ -372,31 +372,31 @@ export default function ScanPage() {
           <h2 className="text-lg font-semibold mb-1 text-center" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
             Similar book found
           </h2>
-          <p className="text-[#8A7F85] text-sm mb-2 text-center">
+          <p className="text-muted text-sm mb-2 text-center">
             A similar book may already be in your library:
           </p>
-          <div className="bg-[#F8F5F0] rounded-xl px-3 py-2 mb-4">
-            <p className="text-sm font-medium text-[#3D3539]">{similarBook.title}</p>
-            <p className="text-xs text-[#8A7F85]">{similarBook.authors?.join(", ")}</p>
-            <p className="text-xs text-[#8A7F85] italic mt-0.5">Different edition</p>
+          <div className="bg-hover rounded-xl px-3 py-2 mb-4">
+            <p className="text-sm font-medium text-charcoal">{similarBook.title}</p>
+            <p className="text-xs text-muted">{similarBook.authors?.join(", ")}</p>
+            <p className="text-xs text-muted italic mt-0.5">Different edition</p>
           </div>
-          <p className="text-sm text-[#3D3539] mb-1 text-center font-medium">
+          <p className="text-sm text-charcoal mb-1 text-center font-medium">
             You&apos;re adding: {edition.title}
           </p>
-          <p className="text-xs text-[#8A7F85] mb-4 text-center">
+          <p className="text-xs text-muted mb-4 text-center">
             {edition.authors?.join(", ")}
           </p>
           <div className="flex gap-3">
             <Link
               href={`/library/book/${similarBook.id}`}
-              className="flex-1 py-2.5 text-center bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] text-sm font-medium rounded-full transition-all"
+              className="flex-1 py-2.5 text-center bg-card hover:bg-hover border border-border text-charcoal text-sm font-medium rounded-full transition-all"
             >
               View Existing
             </Link>
             <button
               onClick={handleAddToLibrary}
               disabled={adding}
-              className="flex-1 py-2.5 bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white text-sm font-medium rounded-full transition-all"
+              className="flex-1 py-2.5 bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-sm font-medium rounded-full transition-all"
             >
               {adding ? "Adding..." : "Add Anyway"}
             </button>
@@ -406,8 +406,8 @@ export default function ScanPage() {
 
       {/* Added success */}
       {scanState === "added" && edition && (
-        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-[#A8D5BA]/20 flex items-center justify-center mx-auto mb-3">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-6 text-center animate-fade-in-up">
+          <div className="w-12 h-12 rounded-full bg-mint/20 flex items-center justify-center mx-auto mb-3">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6BAF8D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 6 9 17l-5-5" />
             </svg>
@@ -415,21 +415,21 @@ export default function ScanPage() {
           <h2 className="text-lg font-semibold mb-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
             Added!
           </h2>
-          <p className="text-[#8A7F85] text-sm mb-4">
+          <p className="text-muted text-sm mb-4">
             {edition.title} is now in your library.
           </p>
           <div className="flex gap-3 justify-center">
             {addedBookId && (
               <Link
                 href={`/library/book/${addedBookId}/edit`}
-                className="bg-[#B8A9D4] hover:bg-[#A898C7] text-white font-medium py-2.5 px-6 rounded-full transition-all text-sm"
+                className="bg-lavender hover:bg-lavender-hover text-white font-medium py-2.5 px-6 rounded-full transition-all text-sm"
               >
                 Edit Entry
               </Link>
             )}
             <button
               onClick={handleScanAnother}
-              className="bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] font-medium py-2.5 px-6 rounded-full transition-all text-sm"
+              className="bg-card hover:bg-hover border border-border text-charcoal font-medium py-2.5 px-6 rounded-full transition-all text-sm"
             >
               Scan Another
             </button>
@@ -439,8 +439,8 @@ export default function ScanPage() {
 
       {/* Error */}
       {scanState === "error" && (
-        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-[#F5C6AA]/20 flex items-center justify-center mx-auto mb-3">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-6 text-center animate-fade-in-up">
+          <div className="w-12 h-12 rounded-full bg-peach/20 flex items-center justify-center mx-auto mb-3">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <path d="m15 9-6 6" />
@@ -450,17 +450,17 @@ export default function ScanPage() {
           <h2 className="text-lg font-semibold mb-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
             Oops!
           </h2>
-          <p className="text-[#8A7F85] text-sm mb-4">{errorMessage}</p>
+          <p className="text-muted text-sm mb-4">{errorMessage}</p>
           <div className="flex gap-3 justify-center">
             <button
               onClick={handleScanAnother}
-              className="bg-[#B8A9D4] hover:bg-[#A898C7] text-white font-medium py-2 px-5 rounded-full transition-all text-sm"
+              className="bg-lavender hover:bg-lavender-hover text-white font-medium py-2 px-5 rounded-full transition-all text-sm"
             >
               Try Again
             </button>
             <Link
               href="/library/add"
-              className="bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] font-medium py-2 px-5 rounded-full transition-all text-sm"
+              className="bg-card hover:bg-hover border border-border text-charcoal font-medium py-2 px-5 rounded-full transition-all text-sm"
             >
               Add Manually
             </Link>

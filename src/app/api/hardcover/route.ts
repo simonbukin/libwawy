@@ -1,4 +1,15 @@
+import { createClient } from "@/lib/supabase/server";
+
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return Response.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
   const token = process.env.HARDCOVER_API_TOKEN;
   if (!token) {
     return Response.json({ error: "Hardcover API not configured" }, { status: 500 });

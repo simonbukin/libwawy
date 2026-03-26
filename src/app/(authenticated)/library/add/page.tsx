@@ -69,14 +69,30 @@ export default function AddBookPage() {
         }
       } else {
         // Title/author search — local DB first
-        const { data: localResults } = await supabase
+        const { data: titleResults } = await supabase
           .from("book_editions")
           .select("*")
-          .or(`title.ilike.%${trimmed}%,authors.cs.{"${trimmed}"}`)
+          .ilike("title", `%${trimmed}%`)
           .limit(10);
 
-        if (localResults && localResults.length > 0) {
-          setSearchResults(localResults as BookEdition[]);
+        const { data: authorResults } = await supabase
+          .from("book_editions")
+          .select("*")
+          .contains("authors", [trimmed])
+          .limit(10);
+
+        // Merge and dedupe
+        const seen = new Set<string>();
+        const localResults: BookEdition[] = [];
+        for (const r of [...(titleResults || []), ...(authorResults || [])]) {
+          if (!seen.has(r.id)) {
+            seen.add(r.id);
+            localResults.push(r as BookEdition);
+          }
+        }
+
+        if (localResults.length > 0) {
+          setSearchResults(localResults);
         } else {
           // Fallback to Open Library search
           const response = await fetch(
@@ -222,7 +238,7 @@ export default function AddBookPage() {
       <div className="flex items-center gap-3 mb-6">
         <Link
           href="/library"
-          className="w-8 h-8 rounded-full bg-white border border-[#F0EBE6] flex items-center justify-center hover:bg-[#F8F5F0] transition-colors"
+          className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center hover:bg-hover transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3D3539" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
@@ -237,20 +253,20 @@ export default function AddBookPage() {
       </div>
 
       {/* Unified search */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <div className="flex gap-2">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by title, author, or ISBN..."
-            className="flex-1 px-3.5 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/60 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+            className="flex-1 px-3.5 py-2.5 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           />
           <button
             onClick={handleSearch}
             disabled={searching || !query.trim()}
-            className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
+            className="bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white font-medium py-2.5 px-5 rounded-full transition-all text-sm whitespace-nowrap"
           >
             {searching ? "Searching..." : "Search"}
           </button>
@@ -259,7 +275,7 @@ export default function AddBookPage() {
         {/* Scan barcode link */}
         <Link
           href="/library/scan"
-          className="mt-3 flex items-center justify-center gap-2 text-sm text-[#8A7F85] hover:text-[#3D3539] transition-colors"
+          className="mt-3 flex items-center justify-center gap-2 text-sm text-muted hover:text-charcoal transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 7V5a2 2 0 0 1 2-2h2" />
@@ -274,20 +290,20 @@ export default function AddBookPage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-[#F5C6AA]/15 border border-[#F5C6AA]/30 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2">
+        <div className="bg-peach/15 border border-peach/30 rounded-2xl px-4 py-3 mb-4 flex items-center gap-2 animate-fade-in-up">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <span className="text-sm text-[#3D3539]">{error}</span>
+          <span className="text-sm text-charcoal">{error}</span>
         </div>
       )}
 
       {/* Search results */}
       {searchResults.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-[#8A7F85]">
+          <h3 className="text-sm font-semibold text-muted">
             {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
           </h3>
           {searchResults.map((edition) => {
@@ -296,9 +312,9 @@ export default function AddBookPage() {
             return (
               <div
                 key={edition.id}
-                className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 flex gap-3"
+                className="bg-card rounded-2xl border border-border shadow-sm p-4 flex gap-3"
               >
-                <div className="w-14 h-20 rounded-lg overflow-hidden bg-[#F8F5F0] flex-shrink-0">
+                <div className="w-14 h-20 rounded-lg overflow-hidden bg-hover flex-shrink-0">
                   {edition.cover_url ? (
                     <img
                       src={edition.cover_url}
@@ -306,22 +322,22 @@ export default function AddBookPage() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-[#B8A9D4]/20">
-                      <span className="text-[#B8A9D4] text-lg font-bold" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+                    <div className="w-full h-full flex items-center justify-center bg-lavender/20">
+                      <span className="text-lavender text-lg font-bold" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                         {edition.title.charAt(0)}
                       </span>
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold text-[#3D3539] line-clamp-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+                  <h4 className="text-sm font-semibold text-charcoal line-clamp-1" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
                     {edition.title}
                   </h4>
-                  <p className="text-xs text-[#8A7F85] line-clamp-1">
+                  <p className="text-xs text-muted line-clamp-1">
                     {edition.authors?.join(", ") || "Unknown author"}
                   </p>
                   {edition.published_year && (
-                    <p className="text-xs text-[#8A7F85] mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                       {edition.published_year}
                     </p>
                   )}
@@ -336,21 +352,21 @@ export default function AddBookPage() {
                         {addedBookIds.get(edition.id) && (
                           <Link
                             href={`/library/book/${addedBookIds.get(edition.id)}/edit`}
-                            className="text-xs text-[#B8A9D4] hover:text-[#A898C7] font-medium"
+                            className="text-xs text-lavender hover:text-lavender-hover font-medium"
                           >
                             Edit
                           </Link>
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs text-[#8A7F85] font-medium">Already owned</span>
+                      <span className="text-xs text-muted font-medium">Already owned</span>
                     )}
                   </div>
                 ) : (
                   <button
                     onClick={() => handleAddBook(edition)}
                     disabled={addingId === edition.id}
-                    className="self-center bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white text-xs font-medium py-2 px-4 rounded-full transition-all whitespace-nowrap flex-shrink-0"
+                    className="self-center bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-xs font-medium py-2 px-4 rounded-full transition-all whitespace-nowrap flex-shrink-0"
                   >
                     {addingId === edition.id ? "Adding..." : "Add"}
                   </button>

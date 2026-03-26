@@ -36,12 +36,13 @@ export default function BookEditPage() {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
   const [removing, setRemoving] = useState(false);
+  const cancelRemoveRef = useRef<HTMLButtonElement>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [dateReadInput, setDateReadInput] = useState("");
 
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSaves = useRef(0);
+  const pendingFields = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     return () => {
@@ -49,6 +50,22 @@ export default function BookEditPage() {
       Object.values(debounceTimers.current).forEach(clearTimeout);
     };
   }, []);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowRemoveModal(false);
+      }
+    };
+    if (showRemoveModal) {
+      document.addEventListener("keydown", handleEsc);
+      return () => document.removeEventListener("keydown", handleEsc);
+    }
+  }, [showRemoveModal]);
+
+  useEffect(() => {
+    if (showRemoveModal) cancelRemoveRef.current?.focus();
+  }, [showRemoveModal]);
 
   useEffect(() => {
     async function fetchBook() {
@@ -83,7 +100,7 @@ export default function BookEditPage() {
       }
 
       setSaveStatus("saving");
-      pendingSaves.current += 1;
+      pendingFields.current.add(field);
 
       debounceTimers.current[field] = setTimeout(async () => {
         try {
@@ -93,9 +110,9 @@ export default function BookEditPage() {
             .update({ [field]: value })
             .eq("id", bookId);
 
-          pendingSaves.current -= 1;
+          pendingFields.current.delete(field);
 
-          if (pendingSaves.current === 0) {
+          if (pendingFields.current.size === 0) {
             if (error) {
               setSaveStatus("error");
               statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
@@ -105,8 +122,8 @@ export default function BookEditPage() {
             }
           }
         } catch {
-          pendingSaves.current -= 1;
-          if (pendingSaves.current === 0) {
+          pendingFields.current.delete(field);
+          if (pendingFields.current.size === 0) {
             setSaveStatus("error");
             statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
           }
@@ -133,7 +150,7 @@ export default function BookEditPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="w-8 h-8 rounded-full border-2 border-[#B8A9D4] border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-lavender border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -141,8 +158,8 @@ export default function BookEditPage() {
   if (!book) {
     return (
       <div className="px-4 py-8 text-center">
-        <p className="text-[#8A7F85]">Book not found.</p>
-        <Link href="/library" className="text-[#B8A9D4] text-sm mt-2 inline-block">
+        <p className="text-muted">Book not found.</p>
+        <Link href="/library" className="text-lavender text-sm mt-2 inline-block">
           Back to library
         </Link>
       </div>
@@ -152,14 +169,14 @@ export default function BookEditPage() {
   const edition = book.book_editions;
 
   return (
-    <div className="px-4 py-4 pb-8 relative">
+    <div className="px-4 py-4 pb-8 relative animate-fade-in">
       {/* Save status indicator */}
       {saveStatus !== "idle" && (
         <div className="fixed top-14 right-4 z-40 flex items-center gap-1.5 pointer-events-none">
           {saveStatus === "saving" && (
             <>
-              <div className="w-3 h-3 rounded-full border border-[#8A7F85] border-t-transparent animate-spin" />
-              <span className="text-xs text-[#8A7F85]">Saving...</span>
+              <div className="w-3 h-3 rounded-full border border-muted border-t-transparent animate-spin" />
+              <span className="text-xs text-muted">Saving...</span>
             </>
           )}
           {saveStatus === "saved" && (
@@ -167,13 +184,13 @@ export default function BookEditPage() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6BAF8D" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              <span className="text-xs text-[#6BAF8D]">Saved</span>
+              <span className="text-xs text-mint-dark">Saved</span>
             </>
           )}
           {saveStatus === "error" && (
             <>
-              <div className="w-2.5 h-2.5 rounded-full bg-[#C97070]" />
-              <span className="text-xs text-[#C97070]">Save failed</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-red" />
+              <span className="text-xs text-red">Save failed</span>
             </>
           )}
         </div>
@@ -183,7 +200,7 @@ export default function BookEditPage() {
       <div className="mb-4">
         <Link
           href={`/library/book/${bookId}`}
-          className="inline-flex items-center gap-1.5 text-sm text-[#8A7F85] hover:text-[#3D3539] transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-charcoal transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
@@ -193,16 +210,16 @@ export default function BookEditPage() {
       </div>
 
       <h1
-        className="text-xl font-bold text-[#3D3539] mb-4"
+        className="text-xl font-bold text-charcoal mb-4"
         style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
       >
         Edit Book
       </h1>
 
       {/* Tags section with autocomplete */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Tags
@@ -217,9 +234,9 @@ export default function BookEditPage() {
       </div>
 
       {/* My Copy section */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           My Copy
@@ -228,8 +245,8 @@ export default function BookEditPage() {
         {/* Format (read-only, from edition) */}
         {edition.format && (
           <div className="mb-3">
-            <label className="text-xs text-[#8A7F85] mb-1.5 block">Format</label>
-            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#D4C9E8]/20 text-[#9B89BF] inline-block">
+            <label className="text-xs text-muted mb-1.5 block">Format</label>
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-lavender-light/20 text-lavender-dark inline-block">
               {edition.format}
             </span>
           </div>
@@ -237,11 +254,11 @@ export default function BookEditPage() {
 
         {/* Condition */}
         <div className="mb-3">
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Condition</label>
+          <label className="text-xs text-muted mb-1.5 block">Condition</label>
           <select
             value={book.condition}
             onChange={(e) => updateField("condition", e.target.value)}
-            className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all appearance-none"
+            className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all appearance-none"
           >
             {conditions.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
@@ -251,31 +268,31 @@ export default function BookEditPage() {
 
         {/* Location */}
         <div className="mb-3">
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Location</label>
+          <label className="text-xs text-muted mb-1.5 block">Location</label>
           <input
             type="text"
             value={book.location || ""}
             onChange={(e) => updateField("location", e.target.value || null)}
             placeholder="e.g., Living room shelf"
-            className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+            className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
           />
         </div>
 
         {/* Acquired date */}
         <div className="mb-3">
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Acquired</label>
+          <label className="text-xs text-muted mb-1.5 block">Acquired</label>
           <input
             type="date"
             value={book.acquired_at || ""}
             onChange={(e) => updateField("acquired_at", e.target.value || null)}
-            className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+            className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
           />
         </div>
 
         {/* Read status */}
         <div>
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Status</label>
-          <div className="flex bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl p-0.5">
+          <label className="text-xs text-muted mb-1.5 block">Status</label>
+          <div className="flex bg-cream border border-border rounded-xl p-0.5">
             {readStatuses.map((s) => (
               <button
                 key={s.value}
@@ -283,13 +300,13 @@ export default function BookEditPage() {
                 className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${
                   book.read_status === s.value
                     ? s.value === "read"
-                      ? "bg-[#B8A9D4] text-white shadow-sm"
+                      ? "bg-lavender text-white shadow-sm"
                       : s.value === "reading"
-                        ? "bg-[#F5C6AA] text-white shadow-sm"
+                        ? "bg-peach text-white shadow-sm"
                         : s.value === "dnf"
-                          ? "bg-[#C97070]/80 text-white shadow-sm"
-                          : "bg-white text-[#3D3539] shadow-sm"
-                    : "text-[#8A7F85] hover:text-[#3D3539]"
+                          ? "bg-red/80 text-white shadow-sm"
+                          : "bg-card text-charcoal shadow-sm"
+                    : "text-muted hover:text-charcoal"
                 }`}
               >
                 {s.label}
@@ -300,9 +317,9 @@ export default function BookEditPage() {
       </div>
 
       {/* Reading section */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Reading
@@ -310,7 +327,7 @@ export default function BookEditPage() {
 
         {/* Rating */}
         <div className="mb-3">
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Rating</label>
+          <label className="text-xs text-muted mb-1.5 block">Rating</label>
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -337,13 +354,13 @@ export default function BookEditPage() {
 
         {/* Dates read */}
         <div className="mb-3">
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Dates read</label>
+          <label className="text-xs text-muted mb-1.5 block">Dates read</label>
           {(book.dates_read || []).length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {(book.dates_read || []).map((d, i) => (
                 <span
                   key={i}
-                  className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#B8A9D4]/10 text-[#9B89BF] flex items-center gap-1"
+                  className="text-xs font-medium px-2.5 py-1 rounded-full bg-lavender/10 text-lavender-dark flex items-center gap-1"
                 >
                   {d}
                   <button
@@ -351,7 +368,7 @@ export default function BookEditPage() {
                       const updated = (book.dates_read || []).filter((_, idx) => idx !== i);
                       updateField("dates_read", updated);
                     }}
-                    className="hover:text-[#C97070] transition-colors"
+                    className="hover:text-red transition-colors"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M18 6 6 18" />
@@ -375,52 +392,52 @@ export default function BookEditPage() {
               }
             }}
             placeholder="e.g. 2023, March 2025, 2025-03-15"
-            className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+            className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
           />
         </div>
 
         {/* Notes */}
         <div>
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Notes</label>
+          <label className="text-xs text-muted mb-1.5 block">Notes</label>
           <textarea
             value={book.notes || ""}
             onChange={(e) => updateField("notes", e.target.value || null)}
             placeholder="Your thoughts on this book..."
             rows={3}
-            className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all resize-none"
+            className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all resize-none"
           />
         </div>
       </div>
 
       {/* Loan section */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Loan
         </h2>
 
         <div className="mb-3">
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Loaned to</label>
+          <label className="text-xs text-muted mb-1.5 block">Loaned to</label>
           <input
             type="text"
             value={book.loaned_to || ""}
             onChange={(e) => updateField("loaned_to", e.target.value || null)}
             placeholder="Person's name"
-            className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+            className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
           />
         </div>
 
         <div>
-          <label className="text-xs text-[#8A7F85] mb-1.5 block">Loaned on</label>
+          <label className="text-xs text-muted mb-1.5 block">Loaned on</label>
           <input
             type="date"
             value={book.loaned_at?.split("T")[0] || ""}
             onChange={(e) =>
               updateField("loaned_at", e.target.value || null)
             }
-            className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+            className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
           />
         </div>
       </div>
@@ -428,23 +445,24 @@ export default function BookEditPage() {
       {/* Remove button */}
       <button
         onClick={() => setShowRemoveModal(true)}
-        className="w-full py-3 text-sm font-medium text-[#C97070] hover:text-[#B85555] hover:bg-[#C97070]/5 rounded-2xl transition-all"
+        className="w-full py-3 text-sm font-medium text-red hover:text-red-dark hover:bg-red/5 rounded-2xl transition-all"
       >
         Remove from Library
       </button>
 
       {/* Remove confirmation modal */}
       {showRemoveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#3D3539]/30 backdrop-blur-sm" onClick={() => setShowRemoveModal(false)} />
-          <div className="bg-white rounded-2xl shadow-xl border border-[#F0EBE6] p-6 w-full max-w-sm relative z-10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="edit-remove-modal-title">
+          <div className="absolute inset-0 bg-charcoal/30 backdrop-blur-sm animate-fade-in" onClick={() => setShowRemoveModal(false)} />
+          <div className="bg-card rounded-2xl shadow-xl border border-border p-6 w-full max-w-sm relative z-10 animate-scale-in">
             <h3
+              id="edit-remove-modal-title"
               className="text-lg font-semibold mb-2"
               style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
             >
               Remove Book
             </h3>
-            <p className="text-sm text-[#8A7F85] mb-4">
+            <p className="text-sm text-muted mb-4">
               Remove &ldquo;{edition.title}&rdquo; from your library? This won&apos;t delete the book data.
             </p>
             <textarea
@@ -452,19 +470,20 @@ export default function BookEditPage() {
               onChange={(e) => setRemoveReason(e.target.value)}
               placeholder="Reason (optional): sold, donated, lost..."
               rows={2}
-              className="w-full px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all resize-none mb-4"
+              className="w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all resize-none mb-4"
             />
             <div className="flex gap-3">
               <button
+                ref={cancelRemoveRef}
                 onClick={() => setShowRemoveModal(false)}
-                className="flex-1 py-2.5 bg-[#F8F5F0] hover:bg-[#F0EBE6] text-[#3D3539] text-sm font-medium rounded-full transition-all"
+                className="flex-1 py-2.5 bg-hover hover:bg-border text-charcoal text-sm font-medium rounded-full transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRemove}
                 disabled={removing}
-                className="flex-1 py-2.5 bg-[#C97070] hover:bg-[#B85555] disabled:opacity-50 text-white text-sm font-medium rounded-full transition-all"
+                className="flex-1 py-2.5 bg-red hover:bg-red-dark disabled:opacity-50 text-white text-sm font-medium rounded-full transition-all"
               >
                 {removing ? "Removing..." : "Remove"}
               </button>

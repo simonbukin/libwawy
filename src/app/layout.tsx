@@ -12,7 +12,6 @@ const quicksand = Quicksand({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export const metadata: Metadata = {
@@ -27,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${quicksand.variable} h-full`}>
-      <body className="min-h-full flex flex-col bg-[#FFFBF5] text-[#3D3539] antialiased">
+      <body className="min-h-full flex flex-col bg-cream text-charcoal antialiased">
         <div className="noise-overlay" aria-hidden="true" />
         {children}
       </body>

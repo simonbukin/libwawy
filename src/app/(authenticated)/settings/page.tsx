@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import type { BookWithEdition } from "@/lib/types/book";
+import { AVATAR_COLORS, getAvatarColor } from "@/lib/utils/avatar";
 
 export default function SettingsPage() {
-  const { libraryId, userId, displayName, members } = useLibrary();
+  const { libraryId, userId, displayName, members, refreshLibrary } = useLibrary();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [libraryName, setLibraryName] = useState("");
@@ -76,6 +77,7 @@ export default function SettingsPage() {
       .update({ display_name: editedName })
       .eq("library_id", libraryId)
       .eq("user_id", userId);
+    await refreshLibrary();
     setSavingName(false);
   };
 
@@ -88,6 +90,7 @@ export default function SettingsPage() {
       .update({ color })
       .eq("library_id", libraryId)
       .eq("user_id", userId);
+    await refreshLibrary();
     setSavingColor(false);
   };
 
@@ -330,9 +333,9 @@ export default function SettingsPage() {
       </h1>
 
       {/* Library name */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Library Name
@@ -343,12 +346,12 @@ export default function SettingsPage() {
             value={libraryName}
             onChange={(e) => setLibraryName(e.target.value)}
             placeholder="Name your library..."
-            className="flex-1 px-3 py-2 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] placeholder:text-[#8A7F85]/50 focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+            className="flex-1 px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
           />
           <button
             onClick={handleSaveLibraryName}
             disabled={savingLibName}
-            className="bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-xl transition-all"
+            className="bg-lavender hover:bg-lavender-hover disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-xl transition-all"
           >
             {savingLibName ? "Saving..." : "Save"}
           </button>
@@ -357,38 +360,38 @@ export default function SettingsPage() {
 
       {/* Join code */}
       {joinCode && (
-        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
           <h2
-            className="text-sm font-semibold text-[#3D3539] mb-3"
+            className="text-sm font-semibold text-charcoal mb-3"
             style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
           >
             Join Code
           </h2>
           <div className="flex items-center gap-2">
-            <div className="flex-1 px-3 py-2.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-xl text-sm text-[#3D3539] font-mono tracking-wider">
+            <div className="flex-1 px-3 py-2.5 bg-cream border border-border rounded-xl text-sm text-charcoal font-mono tracking-wider">
               {joinCode}
             </div>
             <button
               onClick={handleCopyCode}
               className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 copied
-                  ? "bg-[#A8D5BA] text-white"
-                  : "bg-[#F8F5F0] hover:bg-[#F0EBE6] text-[#3D3539]"
+                  ? "bg-mint text-white"
+                  : "bg-hover hover:bg-border text-charcoal"
               }`}
             >
               {copied ? "Copied!" : "Copy"}
             </button>
           </div>
-          <p className="text-xs text-[#8A7F85] mt-2">
+          <p className="text-xs text-muted mt-2">
             Share this code with someone to let them join your library.
           </p>
         </div>
       )}
 
       {/* Members */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Members
@@ -397,8 +400,8 @@ export default function SettingsPage() {
           {members.map((member) => {
             const isMe = member.user_id === userId;
             const avatarColor = isMe
-              ? memberColor || "#B8A9D4"
-              : member.color || "#A8D5BA";
+              ? memberColor || getAvatarColor(member.display_name || "?")
+              : member.color || getAvatarColor(member.display_name || "?");
             return (
               <div key={member.id} className="flex items-center gap-3">
                 <div
@@ -414,22 +417,22 @@ export default function SettingsPage() {
                       value={editedName}
                       onChange={(e) => setEditedName(e.target.value)}
                       placeholder="Your display name"
-                      className="flex-1 px-3 py-1.5 bg-[#FFFBF5] border border-[#F0EBE6] rounded-lg text-sm text-[#3D3539] focus:outline-none focus:ring-2 focus:ring-[#B8A9D4]/40 focus:border-[#B8A9D4] transition-all"
+                      className="flex-1 px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all"
                     />
                     <button
                       onClick={handleSaveDisplayName}
                       disabled={savingName}
-                      className="text-xs text-[#B8A9D4] hover:text-[#9B89BF] font-medium transition-colors"
+                      className="text-xs text-lavender hover:text-lavender-dark font-medium transition-colors"
                     >
                       {savingName ? "Saving..." : "Save"}
                     </button>
                   </div>
                 ) : (
                   <div className="flex-1">
-                    <p className="text-sm text-[#3D3539]">
+                    <p className="text-sm text-charcoal">
                       {member.display_name || "Unnamed"}
                     </p>
-                    <p className="text-xs text-[#8A7F85]">{member.role}</p>
+                    <p className="text-xs text-muted">{member.role}</p>
                   </div>
                 )}
               </div>
@@ -437,18 +440,19 @@ export default function SettingsPage() {
           })}
 
           {/* Color picker for current user */}
-          <div className="pt-3 border-t border-[#F0EBE6]">
-            <label className="text-xs text-[#8A7F85] mb-2 block">Your color</label>
+          <div className="pt-3 border-t border-border">
+            <label className="text-xs text-muted mb-2 block">Your color</label>
             <div className="flex items-center gap-2 flex-wrap">
-              {["#B8A9D4", "#A8D5BA", "#F5C6AA", "#E8B4C8", "#D4C9E8", "#C5E8D2", "#6B9FB8", "#abcdef"].map((c) => (
+              {AVATAR_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => handleSaveColor(c)}
                   className={`w-7 h-7 rounded-full transition-all ${
-                    memberColor === c ? "ring-2 ring-offset-2 ring-[#3D3539]" : "hover:scale-110"
+                    memberColor === c ? "ring-2 ring-offset-2 ring-charcoal" : "hover:scale-110"
                   }`}
                   style={{ backgroundColor: c }}
                   disabled={savingColor}
+                  aria-label={`Set avatar color to ${c}`}
                 />
               ))}
               <label className="relative">
@@ -457,9 +461,10 @@ export default function SettingsPage() {
                   value={memberColor || "#B8A9D4"}
                   onChange={(e) => handleSaveColor(e.target.value)}
                   className="absolute inset-0 w-7 h-7 opacity-0 cursor-pointer"
+                  aria-label="Choose custom color"
                 />
                 <div
-                  className="w-7 h-7 rounded-full border-2 border-dashed border-[#F0EBE6] flex items-center justify-center hover:border-[#B8A9D4] transition-colors cursor-pointer"
+                  className="w-7 h-7 rounded-full border-2 border-dashed border-border flex items-center justify-center hover:border-lavender transition-colors cursor-pointer"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A7F85" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 5v14" />
@@ -473,20 +478,20 @@ export default function SettingsPage() {
       </div>
 
       {/* Export */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Export Library
         </h2>
-        <p className="text-xs text-[#8A7F85] mb-3">
+        <p className="text-xs text-muted mb-3">
           Download your library as a CSV file.
         </p>
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="w-full bg-[#F8F5F0] hover:bg-[#F0EBE6] disabled:opacity-50 text-[#3D3539] text-sm font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
+          className="w-full bg-hover hover:bg-border disabled:opacity-50 text-charcoal text-sm font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -498,14 +503,14 @@ export default function SettingsPage() {
       </div>
 
       {/* Import */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Import Books
         </h2>
-        <p className="text-xs text-[#8A7F85] mb-3">
+        <p className="text-xs text-muted mb-3">
           Upload a CSV file with columns: Title, Authors, ISBN-13, ISBN-10,
           Publisher, Year, Pages, Format, Condition, Location, Read Status,
           Rating, Notes, Loaned To.
@@ -520,7 +525,7 @@ export default function SettingsPage() {
         />
         <label
           htmlFor="import-csv"
-          className={`w-full block text-center cursor-pointer bg-[#F8F5F0] hover:bg-[#F0EBE6] text-[#3D3539] text-sm font-medium py-2.5 rounded-xl transition-all ${
+          className={`w-full block text-center cursor-pointer bg-hover hover:bg-border text-charcoal text-sm font-medium py-2.5 rounded-xl transition-all ${
             importing ? "opacity-50 pointer-events-none" : ""
           }`}
         >
@@ -537,8 +542,8 @@ export default function SettingsPage() {
           <div
             className={`mt-3 px-3 py-2 rounded-xl text-xs ${
               importResult.includes("failed")
-                ? "bg-[#F5C6AA]/15 text-[#D4956F]"
-                : "bg-[#A8D5BA]/15 text-[#6BAF8D]"
+                ? "bg-peach/15 text-peach-dark"
+                : "bg-mint/15 text-mint-dark"
             }`}
           >
             {importResult}
@@ -547,20 +552,20 @@ export default function SettingsPage() {
       </div>
 
       {/* Refresh metadata */}
-      <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-4 mb-4">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
         <h2
-          className="text-sm font-semibold text-[#3D3539] mb-3"
+          className="text-sm font-semibold text-charcoal mb-3"
           style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
         >
           Refresh Metadata
         </h2>
-        <p className="text-xs text-[#8A7F85] mb-3">
+        <p className="text-xs text-muted mb-3">
           Re-fetch metadata for books with missing authors or descriptions using multiple sources.
         </p>
         <button
           onClick={handleRefreshMetadata}
           disabled={refreshing}
-          className="w-full bg-[#F8F5F0] hover:bg-[#F0EBE6] disabled:opacity-50 text-[#3D3539] text-sm font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
+          className="w-full bg-hover hover:bg-border disabled:opacity-50 text-charcoal text-sm font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
@@ -571,8 +576,8 @@ export default function SettingsPage() {
           <div
             className={`mt-3 px-3 py-2 rounded-xl text-xs ${
               refreshResult.includes("failed")
-                ? "bg-[#F5C6AA]/15 text-[#D4956F]"
-                : "bg-[#A8D5BA]/15 text-[#6BAF8D]"
+                ? "bg-peach/15 text-peach-dark"
+                : "bg-mint/15 text-mint-dark"
             }`}
           >
             {refreshResult}
@@ -583,7 +588,7 @@ export default function SettingsPage() {
       {/* Sign out */}
       <button
         onClick={handleSignOut}
-        className="w-full py-3 text-sm font-medium text-[#C97070] hover:text-[#B85555] hover:bg-[#C97070]/5 rounded-2xl transition-all mb-8"
+        className="w-full py-3 text-sm font-medium text-red hover:text-red-dark hover:bg-red/5 rounded-2xl transition-all mb-8"
       >
         Sign Out
       </button>
