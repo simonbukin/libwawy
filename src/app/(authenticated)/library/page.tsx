@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import { createLibrary, joinLibrary } from "@/lib/actions/library";
@@ -9,15 +9,42 @@ import SearchBar from "@/components/search-bar";
 import Link from "next/link";
 import type { BookWithEdition } from "@/lib/types/book";
 
+interface EnrichedBook extends BookWithEdition {
+  _memberColor?: string | null;
+}
+
 export default function LibraryPage() {
   const { libraryId, members, loading: ctxLoading } = useLibrary();
-  const [books, setBooks] = useState<BookWithEdition[]>([]);
-  const [filteredBooks, setFilteredBooks] = useState<BookWithEdition[]>([]);
+  const [books, setBooks] = useState<EnrichedBook[]>([]);
+  const [filteredBooks, setFilteredBooks] = useState<EnrichedBook[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [personFilter, setPersonFilter] = useState<string | null>(null); // user_id or null for "All"
-  const [statusFilter, setStatusFilter] = useState<string | null>(null); // read_status or null for "All"
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("libwawy_library_searchQuery") || "";
+    return "";
+  });
+  const [personFilter, setPersonFilter] = useState<string | null>(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("libwawy_library_personFilter") || null;
+    return null;
+  });
+  const [statusFilter, setStatusFilter] = useState<string | null>(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("libwawy_library_statusFilter") || null;
+    return null;
+  });
+  const [tagFilter, setTagFilter] = useState<string | null>(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("libwawy_library_tagFilter") || null;
+    return null;
+  });
+  const [sortBy, setSortBy] = useState<"added_at" | "title" | "author">(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("libwawy_library_sortBy");
+      if (saved === "title" || saved === "author") return saved;
+    }
+    return "added_at";
+  });
+  const [loanedFilter, setLoanedFilter] = useState<boolean>(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("libwawy_library_loanedFilter") === "true";
+    return false;
+  });
 
   // Onboarding state
   const [onboardMode, setOnboardMode] = useState<"choose" | "create" | "join">("choose");
@@ -49,13 +76,34 @@ export default function LibraryPage() {
             memberMap.set(m.user_id, m.display_name);
           }
         }
-        // Enrich each book with added_by_name
+        // Build user_id → color map
+        const colorMap = new Map<string, string | null>();
+        for (const m of members) {
+          if (m.user_id) {
+            colorMap.set(m.user_id, m.color || null);
+          }
+        }
+        // Enrich each book with added_by_name and member color
         const enriched = (data as BookWithEdition[]).map((book) => ({
           ...book,
           added_by_name: book.added_by ? memberMap.get(book.added_by) ?? null : null,
+          _memberColor: book.added_by ? colorMap.get(book.added_by) ?? null : null,
         }));
         setBooks(enriched);
-        setFilteredBooks(enriched);
+
+        // Apply restored filters using the shared helper
+        const filtered = filterBooks(enriched, searchQuery, personFilter, statusFilter, tagFilter, sortBy, loanedFilter);
+        setFilteredBooks(filtered);
+
+        // Restore scroll position after DOM renders (double rAF for layout settle)
+        const savedY = sessionStorage.getItem("libwawy_library_scrollY");
+        if (savedY) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              window.scrollTo(0, parseInt(savedY, 10));
+            });
+          });
+        }
       }
       setLoading(false);
     }
@@ -65,75 +113,113 @@ export default function LibraryPage() {
     }
   }, [libraryId, ctxLoading, members]);
 
-  // Combined filter: search + person + read status + tag
-  const applyFilters = useCallback(
-    (query: string, person: string | null, status: string | null, tag: string | null) => {
-      let result = books;
+  // Debounced scroll position saving
+  useEffect(() => {
+    let scrollTimer: ReturnType<typeof setTimeout>;
+    const handleScroll = () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        sessionStorage.setItem("libwawy_library_scrollY", String(window.scrollY));
+      }, 150);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      clearTimeout(scrollTimer);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
-      // Person filter
-      if (person) {
-        result = result.filter((b) => b.added_by === person);
-      }
-
-      // Read status filter
-      if (status) {
-        result = result.filter((b) => b.read_status === status);
-      }
-
-      // Tag filter
-      if (tag) {
-        result = result.filter((b) => b.tags?.includes(tag));
-      }
-
-      // Search filter
+  // Shared filter logic (pure function, no state dependency)
+  const filterBooks = useCallback(
+    (source: EnrichedBook[], query: string, person: string | null, status: string | null, tag: string | null, sort: "added_at" | "title" | "author", loaned: boolean) => {
+      let result = source;
+      if (person) result = result.filter((b) => b.added_by === person);
+      if (status) result = result.filter((b) => b.read_status === status);
+      if (loaned) result = result.filter((b) => b.loaned_to);
+      if (tag) result = result.filter((b) => b.tags?.includes(tag));
       if (query.trim()) {
         const lower = query.toLowerCase();
         result = result.filter(
           (b) =>
             b.book_editions.title.toLowerCase().includes(lower) ||
-            b.book_editions.authors?.some((a) =>
-              a.toLowerCase().includes(lower)
-            ) ||
+            b.book_editions.authors?.some((a) => a.toLowerCase().includes(lower)) ||
             b.book_editions.isbn_13?.includes(query) ||
             b.book_editions.isbn_10?.includes(query)
         );
       }
-
-      setFilteredBooks(result);
+      if (sort === "title") {
+        result = [...result].sort((a, b) => a.book_editions.title.localeCompare(b.book_editions.title));
+      } else if (sort === "author") {
+        result = [...result].sort((a, b) => (a.book_editions.authors?.[0] || "").localeCompare(b.book_editions.authors?.[0] || ""));
+      }
+      return result;
     },
-    [books]
+    []
+  );
+
+  // Combined filter: applies to current books state
+  const applyFilters = useCallback(
+    (query: string, person: string | null, status: string | null, tag: string | null, sort: "added_at" | "title" | "author" = sortBy, loaned: boolean = loanedFilter) => {
+      setFilteredBooks(filterBooks(books, query, person, status, tag, sort, loaned));
+    },
+    [books, sortBy, loanedFilter, filterBooks]
   );
 
   const handleSearch = useCallback(
     (query: string) => {
       setSearchQuery(query);
-      applyFilters(query, personFilter, statusFilter, tagFilter);
+      sessionStorage.setItem("libwawy_library_searchQuery", query);
+      applyFilters(query, personFilter, statusFilter, tagFilter, sortBy, loanedFilter);
     },
-    [applyFilters, personFilter, statusFilter, tagFilter]
+    [applyFilters, personFilter, statusFilter, tagFilter, sortBy, loanedFilter]
   );
 
   const handlePersonFilter = useCallback(
     (userId: string | null) => {
       setPersonFilter(userId);
-      applyFilters(searchQuery, userId, statusFilter, tagFilter);
+      if (userId) sessionStorage.setItem("libwawy_library_personFilter", userId);
+      else sessionStorage.removeItem("libwawy_library_personFilter");
+      applyFilters(searchQuery, userId, statusFilter, tagFilter, sortBy, loanedFilter);
     },
-    [applyFilters, searchQuery, statusFilter, tagFilter]
+    [applyFilters, searchQuery, statusFilter, tagFilter, sortBy, loanedFilter]
   );
 
   const handleStatusFilter = useCallback(
     (status: string | null) => {
       setStatusFilter(status);
-      applyFilters(searchQuery, personFilter, status, tagFilter);
+      if (status) sessionStorage.setItem("libwawy_library_statusFilter", status);
+      else sessionStorage.removeItem("libwawy_library_statusFilter");
+      applyFilters(searchQuery, personFilter, status, tagFilter, sortBy, loanedFilter);
     },
-    [applyFilters, searchQuery, personFilter, tagFilter]
+    [applyFilters, searchQuery, personFilter, tagFilter, sortBy, loanedFilter]
   );
 
   const handleTagFilter = useCallback(
     (tag: string | null) => {
       setTagFilter(tag);
-      applyFilters(searchQuery, personFilter, statusFilter, tag);
+      if (tag) sessionStorage.setItem("libwawy_library_tagFilter", tag);
+      else sessionStorage.removeItem("libwawy_library_tagFilter");
+      applyFilters(searchQuery, personFilter, statusFilter, tag, sortBy, loanedFilter);
     },
-    [applyFilters, searchQuery, personFilter, statusFilter]
+    [applyFilters, searchQuery, personFilter, statusFilter, sortBy, loanedFilter]
+  );
+
+  const handleSort = useCallback(
+    (sort: "added_at" | "title" | "author") => {
+      setSortBy(sort);
+      sessionStorage.setItem("libwawy_library_sortBy", sort);
+      applyFilters(searchQuery, personFilter, statusFilter, tagFilter, sort, loanedFilter);
+    },
+    [applyFilters, searchQuery, personFilter, statusFilter, tagFilter, loanedFilter]
+  );
+
+  const handleLoanedFilter = useCallback(
+    (loaned: boolean) => {
+      setLoanedFilter(loaned);
+      sessionStorage.setItem("libwawy_library_loanedFilter", String(loaned));
+      applyFilters(searchQuery, personFilter, statusFilter, tagFilter, sortBy, loaned);
+    },
+    [applyFilters, searchQuery, personFilter, statusFilter, tagFilter, sortBy]
   );
 
   const allTags = [...new Set(books.flatMap((b) => b.tags || []))].sort();
@@ -270,10 +356,35 @@ export default function LibraryPage() {
 
   return (
     <div className="px-4 py-4">
-      {/* Search */}
-      <div className="mb-4">
-        <SearchBar onSearch={handleSearch} placeholder="Search your library..." />
+      {/* Search + Sort */}
+      <div className="mb-4 flex gap-2 items-start">
+        <div className="flex-1">
+          <SearchBar onSearch={handleSearch} placeholder="Search your library..." initialValue={searchQuery} />
+        </div>
       </div>
+
+      {/* Sort control */}
+      {books.length > 0 && (
+        <div className="mb-3 flex bg-white border border-[#F0EBE6] rounded-xl p-0.5 w-fit" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+          {([
+            { value: "added_at", label: "Recent" },
+            { value: "title", label: "Title" },
+            { value: "author", label: "Author" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => handleSort(opt.value)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
+                sortBy === opt.value
+                  ? "bg-[#B8A9D4] text-white shadow-sm"
+                  : "text-[#8A7F85] hover:text-[#3D3539]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Person filter pills */}
       {members.length > 0 && books.length > 0 && (
@@ -308,16 +419,16 @@ export default function LibraryPage() {
       {books.length > 0 && (
         <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
           <button
-            onClick={() => handleStatusFilter(null)}
+            onClick={() => { handleStatusFilter(null); if (loanedFilter) handleLoanedFilter(false); }}
             className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-              statusFilter === null
+              statusFilter === null && !loanedFilter
                 ? "bg-[#B8A9D4] text-white"
                 : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
             }`}
           >
             All
           </button>
-          {(["unread", "reading", "read"] as const).map((s) => (
+          {(["unread", "reading", "read", "dnf"] as const).map((s) => (
             <button
               key={s}
               onClick={() => handleStatusFilter(s)}
@@ -327,9 +438,19 @@ export default function LibraryPage() {
                   : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
               }`}
             >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === "dnf" ? "DNF" : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
+          <button
+            onClick={() => handleLoanedFilter(!loanedFilter)}
+            className={`flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+              loanedFilter
+                ? "bg-[#E8B4C8] text-white"
+                : "bg-white border border-[#F0EBE6] text-[#8A7F85]"
+            }`}
+          >
+            Loaned
+          </button>
         </div>
       )}
 
@@ -420,13 +541,13 @@ export default function LibraryPage() {
       {filteredBooks.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {filteredBooks.map((book) => (
-            <BookCard key={book.id} book={book} />
+            <BookCard key={book.id} book={book} memberColor={book._memberColor} />
           ))}
         </div>
       )}
 
       {/* No search/filter results */}
-      {(searchQuery || personFilter || statusFilter || tagFilter) && filteredBooks.length === 0 && books.length > 0 && (
+      {(searchQuery || personFilter || statusFilter || tagFilter || loanedFilter) && filteredBooks.length === 0 && books.length > 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <p className="text-[#8A7F85] text-sm">
             No books match your {searchQuery ? "search" : "filters"}.

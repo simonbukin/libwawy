@@ -2,13 +2,17 @@
 
 import { LibraryProvider, useLibrary } from "@/lib/context/library-context";
 import Nav from "@/components/nav";
+import UserMenu from "@/components/user-menu";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 
 function AuthenticatedContent({ children }: { children: React.ReactNode }) {
-  const { displayName, loading } = useLibrary();
-  const [userInitial, setUserInitial] = useState<string>("");
+  const { displayName, userId, members, loading } = useLibrary();
+  const [userDisplayName, setUserDisplayName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
+
+  const currentMember = members.find((m) => m.user_id === userId);
+  const memberColor = currentMember?.color || null;
 
   useEffect(() => {
     async function getUser() {
@@ -22,7 +26,7 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
           user.user_metadata?.full_name ||
           user.email ||
           "?";
-        setUserInitial(name.charAt(0).toUpperCase());
+        setUserDisplayName(name);
         setUserEmail(user.email || "");
       }
     }
@@ -51,12 +55,11 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
           >
             libwawy
           </h1>
-          <div
-            className="w-8 h-8 rounded-full bg-[#B8A9D4] flex items-center justify-center text-white text-sm font-semibold"
-            title={userEmail}
-          >
-            {userInitial}
-          </div>
+          <UserMenu
+            displayName={userDisplayName}
+            email={userEmail}
+            color={memberColor}
+          />
         </div>
       </header>
 

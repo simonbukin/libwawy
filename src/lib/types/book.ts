@@ -11,7 +11,36 @@ export interface LibraryMember {
   user_id: string;
   role: "owner" | "member";
   display_name: string | null;
+  color: string | null;
   joined_at: string;
+}
+
+export interface List {
+  id: string;
+  library_id: string;
+  user_id: string;
+  name: string;
+  slug: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface ListItem {
+  id: string;
+  list_id: string;
+  edition_id: string;
+  library_book_id: string | null;
+  added_at: string;
+  notes: string | null;
+  position: number;
+}
+
+export interface ListItemWithEdition extends ListItem {
+  book_editions: BookEdition;
+}
+
+export interface ListWithItems extends List {
+  list_items: ListItemWithEdition[];
 }
 
 export interface BookEdition {
@@ -48,10 +77,12 @@ export interface LibraryBook {
   purchase_price: number | null;
   purchase_date: string | null;
   purchase_notes: string | null;
-  read_status: "unread" | "reading" | "read";
+  read_status: "unread" | "reading" | "read" | "dnf";
   read_by: string | null;
   started_at: string | null;
   finished_at: string | null;
+  acquired_at: string | null;
+  dates_read: string[] | null;
   rating: number | null;
   notes: string | null;
   removed_at: string | null;

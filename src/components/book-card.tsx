@@ -5,12 +5,14 @@ import type { BookWithEdition } from "@/lib/types/book";
 
 interface BookCardProps {
   book: BookWithEdition;
+  memberColor?: string | null;
 }
 
 const statusColors: Record<string, { bg: string; text: string; label: string }> = {
   read: { bg: "bg-[#B8A9D4]/15", text: "text-[#9B89BF]", label: "Read" },
   reading: { bg: "bg-[#F5C6AA]/20", text: "text-[#D4956F]", label: "Reading" },
   unread: { bg: "bg-[#F0EBE6]", text: "text-[#8A7F85]", label: "Unread" },
+  dnf: { bg: "bg-[#C97070]/10", text: "text-[#C97070]", label: "DNF" },
 };
 
 const conditionColors: Record<string, string> = {
@@ -57,7 +59,7 @@ function getPlaceholderColor(title: string) {
   return placeholderColors[Math.abs(hash) % placeholderColors.length];
 }
 
-export default function BookCard({ book }: BookCardProps) {
+export default function BookCard({ book, memberColor }: BookCardProps) {
   const router = useRouter();
   const edition = book.book_editions;
   const status = statusColors[book.read_status] || statusColors.unread;
@@ -91,7 +93,7 @@ export default function BookCard({ book }: BookCardProps) {
         {book.added_by_name && (
           <div
             className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white shadow-sm"
-            style={{ backgroundColor: getBadgeColor(book.added_by_name), fontFamily: "var(--font-quicksand), sans-serif" }}
+            style={{ backgroundColor: memberColor || getBadgeColor(book.added_by_name), fontFamily: "var(--font-quicksand), sans-serif" }}
             title={`Added by ${book.added_by_name}`}
           >
             {book.added_by_name.charAt(0).toUpperCase()}
@@ -143,6 +145,11 @@ export default function BookCard({ book }: BookCardProps) {
           {(book.tags || []).length > 2 && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#D4E8F0]/20 text-[#6B9FB8]/70">
               +{(book.tags || []).length - 2}
+            </span>
+          )}
+          {(book.tags || []).length === 0 && edition.genres?.[0] && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#E8B4C8]/15 text-[#C4819E]">
+              {edition.genres[0]}
             </span>
           )}
         </div>

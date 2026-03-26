@@ -5,10 +5,21 @@ import { useLibrary } from "@/lib/context/library-context";
 import { createClient } from "@/lib/supabase/client";
 import Scanner from "@/components/scanner";
 import Link from "next/link";
-import type { BookEdition, BookWithEdition, WishlistWithEdition } from "@/lib/types/book";
+import type { BookEdition, BookWithEdition } from "@/lib/types/book";
 // lookupByIsbn is dynamically imported in lookupIsbn callback
 
-type ScanState = "scanning" | "looking_up" | "result" | "already_owned" | "on_wishlist" | "error" | "added";
+interface ListMatch {
+  listName: string;
+  ownerName: string;
+}
+
+interface SimilarBook {
+  id: string;
+  title: string;
+  authors: string[];
+}
+
+type ScanState = "scanning" | "looking_up" | "result" | "already_owned" | "similar_found" | "error" | "added";
 
 export default function ScanPage() {
   const { libraryId, members } = useLibrary();
@@ -16,9 +27,11 @@ export default function ScanPage() {
   const [scannedIsbn, setScannedIsbn] = useState<string>("");
   const [edition, setEdition] = useState<BookEdition | null>(null);
   const [existingBook, setExistingBook] = useState<BookWithEdition | null>(null);
-  const [wishlistMatch, setWishlistMatch] = useState<WishlistWithEdition | null>(null);
+  const [listMatches, setListMatches] = useState<ListMatch[]>([]);
+  const [similarBook, setSimilarBook] = useState<SimilarBook | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [adding, setAdding] = useState(false);
+  const [addedBookId, setAddedBookId] = useState<string | null>(null);
   const [manualIsbn, setManualIsbn] = useState("");
   const [cameraFailed, setCameraFailed] = useState(false);
 
@@ -60,18 +73,48 @@ export default function ScanPage() {
           return;
         }
 
-        // Check wishlists
-        const { data: wishlistItem } = await supabase
-          .from("wishlists")
-          .select("*, book_editions(*)")
-          .eq("library_id", libraryId)
+        // Check if on any member's list
+        const { data: listItems } = await supabase
+          .from("list_items")
+          .select("list_id, lists(name, user_id)")
           .eq("edition_id", existingEdition.id)
-          .is("fulfilled_at", null)
-          .limit(1)
-          .single();
+          .limit(5);
 
-        if (wishlistItem) {
-          setWishlistMatch(wishlistItem as WishlistWithEdition);
+        if (listItems && listItems.length > 0) {
+          const matches: ListMatch[] = listItems
+            .filter((li: Record<string, unknown>) => li.lists)
+            .map((li: Record<string, unknown>) => {
+              const listData = li.lists as { name: string; user_id: string };
+              const member = members.find((m) => m.user_id === listData.user_id);
+              return {
+                listName: listData.name,
+                ownerName: member?.display_name || "Someone",
+              };
+            });
+          setListMatches(matches);
+        }
+
+        // Title-based similar book check (Phase 5)
+        const baseTitle = existingEdition.title.split(":")[0].trim().toLowerCase();
+        const { data: similarBooks } = await supabase
+          .from("library_books")
+          .select("id, book_editions(title, authors)")
+          .eq("library_id", libraryId)
+          .is("removed_at", null);
+
+        if (similarBooks) {
+          const similar = similarBooks.find((sb: Record<string, unknown>) => {
+            const ed = sb.book_editions as { title: string; authors: string[] } | null;
+            if (!ed) return false;
+            const sbBaseTitle = ed.title.split(":")[0].trim().toLowerCase();
+            return sbBaseTitle === baseTitle;
+          });
+          if (similar) {
+            const ed = similar.book_editions as unknown as { title: string; authors: string[] };
+            setSimilarBook({ id: similar.id as string, title: ed.title, authors: ed.authors || [] });
+            setScanState("similar_found");
+            return;
+          }
         }
 
         setScanState("result");
@@ -80,7 +123,7 @@ export default function ScanPage() {
         setErrorMessage("Something went wrong. Please try again.");
       }
     },
-    [libraryId]
+    [libraryId, members]
   );
 
   const handleAddToLibrary = async () => {
@@ -92,25 +135,18 @@ export default function ScanPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from("library_books").insert({
+    const { data: insertedBook, error } = await supabase.from("library_books").insert({
       library_id: libraryId,
       edition_id: edition.id,
       added_by: user?.id || null,
       condition: "good",
       read_status: "unread",
-    });
-
-    // If this was on someone's wishlist, mark it fulfilled
-    if (wishlistMatch) {
-      await supabase
-        .from("wishlists")
-        .update({ fulfilled_at: new Date().toISOString() })
-        .eq("id", wishlistMatch.id);
-    }
+    }).select("id").single();
 
     setAdding(false);
 
-    if (!error) {
+    if (!error && insertedBook) {
+      setAddedBookId(insertedBook.id);
       setScanState("added");
     } else {
       setErrorMessage("Failed to add book. Please try again.");
@@ -123,14 +159,10 @@ export default function ScanPage() {
     setScannedIsbn("");
     setEdition(null);
     setExistingBook(null);
-    setWishlistMatch(null);
+    setListMatches([]);
+    setSimilarBook(null);
     setErrorMessage("");
-  };
-
-  const getWishlistOwnerName = () => {
-    if (!wishlistMatch) return "Someone";
-    const member = members.find((m) => m.user_id === wishlistMatch.user_id);
-    return member?.display_name || "Someone";
+    setAddedBookId(null);
   };
 
   return (
@@ -299,14 +331,17 @@ export default function ScanPage() {
             </div>
           </div>
 
-          {/* Wishlist match banner */}
-          {wishlistMatch && (
+          {/* List match banner */}
+          {listMatches.length > 0 && (
             <div className="mx-4 mb-3 bg-[#E8B4C8]/15 border border-[#E8B4C8]/30 rounded-xl px-3 py-2 flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8B4C8" stroke="#E8B4C8" strokeWidth="1.5">
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8B4C8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 6h13" />
+                <path d="M8 12h13" />
+                <path d="M3 6h.01" />
+                <path d="M3 12h.01" />
               </svg>
               <span className="text-xs text-[#3D3539]">
-                On <strong>{getWishlistOwnerName()}&apos;s</strong> wishlist!
+                On <strong>{listMatches[0].ownerName}&apos;s</strong> {listMatches[0].listName}!
               </span>
             </div>
           )}
@@ -319,6 +354,51 @@ export default function ScanPage() {
               className="w-full bg-[#B8A9D4] hover:bg-[#A898C7] active:bg-[#9B89BF] disabled:opacity-60 text-white font-medium py-3 rounded-full transition-all text-sm"
             >
               {adding ? "Adding..." : "Add to Library"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Similar book found */}
+      {scanState === "similar_found" && edition && similarBook && (
+        <div className="bg-white rounded-2xl border border-[#F0EBE6] shadow-sm p-6">
+          <div className="w-12 h-12 rounded-full bg-[#F5C6AA]/20 flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4956F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold mb-1 text-center" style={{ fontFamily: "var(--font-quicksand), sans-serif" }}>
+            Similar book found
+          </h2>
+          <p className="text-[#8A7F85] text-sm mb-2 text-center">
+            A similar book may already be in your library:
+          </p>
+          <div className="bg-[#F8F5F0] rounded-xl px-3 py-2 mb-4">
+            <p className="text-sm font-medium text-[#3D3539]">{similarBook.title}</p>
+            <p className="text-xs text-[#8A7F85]">{similarBook.authors?.join(", ")}</p>
+            <p className="text-xs text-[#8A7F85] italic mt-0.5">Different edition</p>
+          </div>
+          <p className="text-sm text-[#3D3539] mb-1 text-center font-medium">
+            You&apos;re adding: {edition.title}
+          </p>
+          <p className="text-xs text-[#8A7F85] mb-4 text-center">
+            {edition.authors?.join(", ")}
+          </p>
+          <div className="flex gap-3">
+            <Link
+              href={`/library/book/${similarBook.id}`}
+              className="flex-1 py-2.5 text-center bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] text-sm font-medium rounded-full transition-all"
+            >
+              View Existing
+            </Link>
+            <button
+              onClick={handleAddToLibrary}
+              disabled={adding}
+              className="flex-1 py-2.5 bg-[#B8A9D4] hover:bg-[#A898C7] disabled:opacity-50 text-white text-sm font-medium rounded-full transition-all"
+            >
+              {adding ? "Adding..." : "Add Anyway"}
             </button>
           </div>
         </div>
@@ -338,12 +418,22 @@ export default function ScanPage() {
           <p className="text-[#8A7F85] text-sm mb-4">
             {edition.title} is now in your library.
           </p>
-          <button
-            onClick={handleScanAnother}
-            className="bg-[#B8A9D4] hover:bg-[#A898C7] text-white font-medium py-2.5 px-6 rounded-full transition-all text-sm"
-          >
-            Scan Another
-          </button>
+          <div className="flex gap-3 justify-center">
+            {addedBookId && (
+              <Link
+                href={`/library/book/${addedBookId}/edit`}
+                className="bg-[#B8A9D4] hover:bg-[#A898C7] text-white font-medium py-2.5 px-6 rounded-full transition-all text-sm"
+              >
+                Edit Entry
+              </Link>
+            )}
+            <button
+              onClick={handleScanAnother}
+              className="bg-white hover:bg-[#F8F5F0] border border-[#F0EBE6] text-[#3D3539] font-medium py-2.5 px-6 rounded-full transition-all text-sm"
+            >
+              Scan Another
+            </button>
+          </div>
         </div>
       )}
 

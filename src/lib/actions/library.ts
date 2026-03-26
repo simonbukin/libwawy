@@ -52,6 +52,12 @@ export async function createLibrary(name: string) {
     return { error: memberError.message };
   }
 
+  // Create default lists
+  await supabase.from("lists").insert([
+    { library_id: libraryId, user_id: user.id, name: "TBR", slug: "tbr", is_default: true },
+    { library_id: libraryId, user_id: user.id, name: "Wishlist", slug: "wishlist", is_default: true },
+  ]);
+
   return { data: { id: libraryId, name, join_code: joinCode } };
 }
 
@@ -116,6 +122,12 @@ export async function joinLibrary(joinCode: string) {
   if (memberError) {
     return { error: memberError.message };
   }
+
+  // Create default lists
+  await supabase.from("lists").insert([
+    { library_id: library.id, user_id: user.id, name: "TBR", slug: "tbr", is_default: true },
+    { library_id: library.id, user_id: user.id, name: "Wishlist", slug: "wishlist", is_default: true },
+  ]);
 
   return { data: library };
 }

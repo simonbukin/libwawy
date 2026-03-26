@@ -20,6 +20,7 @@ export default function AddBookPage() {
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [addedBookIds, setAddedBookIds] = useState<Map<string, string>>(new Map());
   const [ownedEditionIds, setOwnedEditionIds] = useState<Set<string>>(new Set());
   const [ownedIsbns, setOwnedIsbns] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
@@ -185,19 +186,22 @@ export default function AddBookPage() {
       return;
     }
 
-    const { error: addErr } = await supabase.from("library_books").insert({
+    const { data: insertedBook, error: addErr } = await supabase.from("library_books").insert({
       library_id: libraryId,
       edition_id: editionId,
       added_by: user?.id || null,
       condition: "good",
       read_status: "unread",
-    });
+    }).select("id").single();
 
     if (addErr) {
       setError("Failed to add book. Please try again.");
     } else {
       setAddedIds((prev) => new Set(prev).add(edition.id));
       setOwnedEditionIds((prev) => new Set(prev).add(editionId));
+      if (insertedBook) {
+        setAddedBookIds((prev) => new Map(prev).set(edition.id, insertedBook.id));
+      }
     }
 
     setAddingId(null);
@@ -325,9 +329,19 @@ export default function AddBookPage() {
                 {owned ? (
                   <div className="self-center flex items-center gap-1.5 flex-shrink-0">
                     {justAdded ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6BAF8D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
+                      <div className="flex items-center gap-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6BAF8D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                        {addedBookIds.get(edition.id) && (
+                          <Link
+                            href={`/library/book/${addedBookIds.get(edition.id)}/edit`}
+                            className="text-xs text-[#B8A9D4] hover:text-[#A898C7] font-medium"
+                          >
+                            Edit
+                          </Link>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-xs text-[#8A7F85] font-medium">Already owned</span>
                     )}

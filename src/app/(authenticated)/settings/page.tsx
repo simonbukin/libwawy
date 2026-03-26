@@ -18,6 +18,8 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [savingLibName, setSavingLibName] = useState(false);
+  const [memberColor, setMemberColor] = useState<string>("");
+  const [savingColor, setSavingColor] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -44,6 +46,11 @@ export default function SettingsPage() {
   useEffect(() => {
     setEditedName(displayName || "");
   }, [displayName]);
+
+  useEffect(() => {
+    const me = members.find((m) => m.user_id === userId);
+    if (me?.color) setMemberColor(me.color);
+  }, [members, userId]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(joinCode);
@@ -72,6 +79,18 @@ export default function SettingsPage() {
     setSavingName(false);
   };
 
+  const handleSaveColor = async (color: string) => {
+    if (!libraryId || !userId) return;
+    setMemberColor(color);
+    setSavingColor(true);
+    await supabase
+      .from("library_members")
+      .update({ color })
+      .eq("library_id", libraryId)
+      .eq("user_id", userId);
+    setSavingColor(false);
+  };
+
   const handleExport = async () => {
     if (!libraryId) return;
     setExporting(true);
@@ -93,6 +112,8 @@ export default function SettingsPage() {
         "Year",
         "Pages",
         "Format",
+        "Genres",
+        "Tags",
         "Condition",
         "Location",
         "Read Status",
@@ -110,6 +131,8 @@ export default function SettingsPage() {
         b.book_editions.published_year?.toString() || "",
         b.book_editions.page_count?.toString() || "",
         b.book_editions.format || "",
+        b.book_editions.genres?.join("; ") || "",
+        (b.tags || []).join("; "),
         b.condition,
         b.location || "",
         b.read_status,
@@ -373,12 +396,14 @@ export default function SettingsPage() {
         <div className="space-y-3">
           {members.map((member) => {
             const isMe = member.user_id === userId;
+            const avatarColor = isMe
+              ? memberColor || "#B8A9D4"
+              : member.color || "#A8D5BA";
             return (
               <div key={member.id} className="flex items-center gap-3">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${
-                    isMe ? "bg-[#B8A9D4]" : "bg-[#A8D5BA]"
-                  }`}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                  style={{ backgroundColor: avatarColor }}
                 >
                   {(member.display_name || "?").charAt(0).toUpperCase()}
                 </div>
@@ -410,6 +435,40 @@ export default function SettingsPage() {
               </div>
             );
           })}
+
+          {/* Color picker for current user */}
+          <div className="pt-3 border-t border-[#F0EBE6]">
+            <label className="text-xs text-[#8A7F85] mb-2 block">Your color</label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {["#B8A9D4", "#A8D5BA", "#F5C6AA", "#E8B4C8", "#D4C9E8", "#C5E8D2", "#6B9FB8", "#abcdef"].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => handleSaveColor(c)}
+                  className={`w-7 h-7 rounded-full transition-all ${
+                    memberColor === c ? "ring-2 ring-offset-2 ring-[#3D3539]" : "hover:scale-110"
+                  }`}
+                  style={{ backgroundColor: c }}
+                  disabled={savingColor}
+                />
+              ))}
+              <label className="relative">
+                <input
+                  type="color"
+                  value={memberColor || "#B8A9D4"}
+                  onChange={(e) => handleSaveColor(e.target.value)}
+                  className="absolute inset-0 w-7 h-7 opacity-0 cursor-pointer"
+                />
+                <div
+                  className="w-7 h-7 rounded-full border-2 border-dashed border-[#F0EBE6] flex items-center justify-center hover:border-[#B8A9D4] transition-colors cursor-pointer"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A7F85" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                </div>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 

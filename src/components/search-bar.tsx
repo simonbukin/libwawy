@@ -5,13 +5,15 @@ import { useState, useEffect, useRef, useCallback } from "react";
 interface SearchBarProps {
   onSearch: (query: string) => void;
   placeholder?: string;
+  initialValue?: string;
 }
 
 export default function SearchBar({
   onSearch,
   placeholder = "Search books...",
+  initialValue = "",
 }: SearchBarProps) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedSearch = useCallback(
