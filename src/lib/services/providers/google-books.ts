@@ -59,6 +59,7 @@ function volumeToEdition(volume: GoogleBooksVolume): Partial<BookEdition> {
     google_books_id: volume.id,
     description: info.description ?? null,
     genres: info.categories ?? null,
+    format: null,
   };
 }
 

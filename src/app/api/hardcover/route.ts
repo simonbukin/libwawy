@@ -36,6 +36,8 @@ export async function POST(request: Request) {
           isbn_10
           pages
           release_date
+          format
+          publishers
         }
       }
     }

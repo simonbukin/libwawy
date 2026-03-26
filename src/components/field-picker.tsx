@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { FieldOption } from "@/lib/services/providers/types";
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -12,12 +12,9 @@ const PROVIDER_COLORS: Record<string, string> = {
   amazon: "bg-peach/20 text-peach-dark",
 };
 
-function formatValue(value: unknown, field: string): string {
+function valueToString(value: unknown, field: string): string {
   if (value === null || value === undefined) return "";
-  if (field === "authors" && Array.isArray(value)) {
-    return value.join(", ");
-  }
-  if (field === "genres" && Array.isArray(value)) {
+  if ((field === "authors" || field === "genres") && Array.isArray(value)) {
     return value.join(", ");
   }
   return String(value);
@@ -25,10 +22,7 @@ function formatValue(value: unknown, field: string): string {
 
 function formatPreview(value: unknown, field: string): string {
   if (value === null || value === undefined) return "—";
-  if (field === "authors" && Array.isArray(value)) {
-    return value.join(", ");
-  }
-  if (field === "genres" && Array.isArray(value)) {
+  if ((field === "authors" || field === "genres") && Array.isArray(value)) {
     return value.join(", ");
   }
   if (field === "description" && typeof value === "string") {
@@ -37,7 +31,7 @@ function formatPreview(value: unknown, field: string): string {
   return String(value);
 }
 
-/** Parse a comma-separated string back to an array */
+/** Parse a comma-separated string back to an array, preserving spaces within items */
 function parseArray(str: string): string[] {
   return str
     .split(",")
@@ -45,7 +39,6 @@ function parseArray(str: string): string[] {
     .filter((s) => s.length > 0);
 }
 
-/** Parse a numeric string, returning null for empty/invalid */
 function parseNumber(str: string): number | null {
   if (!str.trim()) return null;
   const n = parseInt(str, 10);
@@ -73,7 +66,70 @@ export default function FieldPicker({
   const isTextArea = field === "description";
   const isCover = field === "cover_url";
 
-  // Close on outside click
+  // Local editing state — decoupled from parent to avoid cursor issues
+  const [localText, setLocalText] = useState(() =>
+    valueToString(currentValue, field)
+  );
+  const [isFocused, setIsFocused] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync from parent when not focused (e.g., provider pick or external update)
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalText(valueToString(currentValue, field));
+    }
+  }, [currentValue, field, isFocused]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const commitValue = useCallback(
+    (raw: string) => {
+      if (isArrayField) {
+        onPick(parseArray(raw));
+      } else if (isNumberField) {
+        onPick(parseNumber(raw));
+      } else {
+        onPick(raw || null);
+      }
+    },
+    [isArrayField, isNumberField, onPick]
+  );
+
+  const handleChange = (raw: string) => {
+    setLocalText(raw);
+
+    // Debounce the save
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      commitValue(raw);
+    }, 600);
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    // Commit immediately on blur
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    commitValue(localText);
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+  };
+
+  // When a provider option is picked, update both local and parent
+  const handleProviderPick = (value: unknown) => {
+    const asString = valueToString(value, field);
+    setLocalText(asString);
+    onPick(value);
+    setOpen(false);
+  };
+
+  // Close dropdown on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -91,16 +147,6 @@ export default function FieldPicker({
       formatPreview(options[0].value, field) !==
         formatPreview(currentValue, field));
 
-  const handleTextChange = (raw: string) => {
-    if (isArrayField) {
-      onPick(parseArray(raw));
-    } else if (isNumberField) {
-      onPick(parseNumber(raw));
-    } else {
-      onPick(raw || null);
-    }
-  };
-
   const inputClasses =
     "w-full px-3 py-2 bg-cream border border-border rounded-xl text-sm text-charcoal placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-lavender/40 focus:border-lavender transition-all";
 
@@ -111,7 +157,6 @@ export default function FieldPicker({
           <label className="text-xs text-muted mb-1 block">{label}</label>
 
           {isCover ? (
-            /* Cover: thumbnail + text input for URL */
             <div className="flex items-start gap-3">
               {typeof currentValue === "string" && currentValue && (
                 <div className="w-12 h-16 rounded-lg overflow-hidden bg-hover flex-shrink-0">
@@ -124,16 +169,20 @@ export default function FieldPicker({
               )}
               <input
                 type="text"
-                value={String(currentValue ?? "")}
-                onChange={(e) => onPick(e.target.value || null)}
+                value={localText}
+                onChange={(e) => handleChange(e.target.value)}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
                 placeholder="Cover image URL"
                 className={`${inputClasses} flex-1`}
               />
             </div>
           ) : isTextArea ? (
             <textarea
-              value={formatValue(currentValue, field)}
-              onChange={(e) => handleTextChange(e.target.value)}
+              value={localText}
+              onChange={(e) => handleChange(e.target.value)}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               placeholder={`Enter ${label.toLowerCase()}...`}
               rows={3}
               className={`${inputClasses} resize-none`}
@@ -141,8 +190,10 @@ export default function FieldPicker({
           ) : (
             <input
               type={isNumberField ? "number" : "text"}
-              value={formatValue(currentValue, field)}
-              onChange={(e) => handleTextChange(e.target.value)}
+              value={localText}
+              onChange={(e) => handleChange(e.target.value)}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               placeholder={
                 isArrayField
                   ? `Comma-separated ${label.toLowerCase()}`
@@ -186,10 +237,7 @@ export default function FieldPicker({
             {options.map((opt, i) => (
               <button
                 key={`${opt.provider}-${i}`}
-                onClick={() => {
-                  onPick(opt.value);
-                  setOpen(false);
-                }}
+                onClick={() => handleProviderPick(opt.value)}
                 className="w-full text-left px-3 py-2.5 hover:bg-hover transition-colors border-b border-border/50 last:border-0"
               >
                 {isCover && opt.value ? (

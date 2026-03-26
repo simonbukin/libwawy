@@ -44,16 +44,35 @@ export const hardcoverProvider: BookProvider = {
         if (match) publishedYear = parseInt(match[0], 10) || null;
       }
 
+      // Publisher from edition
+      const publishers = edition?.publishers as string[] | undefined;
+      const publisher = publishers?.[0] ?? null;
+
+      // Format from edition
+      const rawFormat = (edition?.format as string)?.toLowerCase() ?? null;
+      const format = rawFormat?.includes("hardcover") || rawFormat?.includes("hardback")
+        ? "hardcover"
+        : rawFormat?.includes("paperback")
+          ? "paperback"
+          : rawFormat?.includes("mass market")
+            ? "mass_market"
+            : rawFormat
+              ? "other"
+              : null;
+
       const data: Partial<BookEdition> = {
         isbn_13: edition?.isbn_13 ?? null,
         isbn_10: edition?.isbn_10 ?? null,
         title: book.title ?? "",
+        subtitle: null,
         authors,
         description: book.description ?? null,
         genres,
         cover_url: book.cover_image_url ?? null,
         page_count: edition?.pages ?? null,
         published_year: publishedYear,
+        publisher,
+        format,
         hardcover_id: String(book.id) ?? null,
       };
 

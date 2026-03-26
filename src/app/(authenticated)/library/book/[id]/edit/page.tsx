@@ -155,6 +155,12 @@ export default function BookEditPage() {
 
   const editionDebounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const pendingEditionFields = useRef<Set<string>>(new Set());
+  const editionIdRef = useRef<string>("");
+
+  // Keep edition ID ref in sync
+  useEffect(() => {
+    if (book) editionIdRef.current = book.book_editions.id;
+  }, [book]);
 
   useEffect(() => {
     return () => {
@@ -164,8 +170,6 @@ export default function BookEditPage() {
 
   const updateEditionField = useCallback(
     (field: string, value: unknown) => {
-      if (!book) return;
-
       // Update local state immediately
       setBook((prev) =>
         prev
@@ -175,6 +179,9 @@ export default function BookEditPage() {
             }
           : prev
       );
+
+      const eid = editionIdRef.current;
+      if (!eid) return;
 
       // Clear existing debounce for this field
       if (editionDebounceTimers.current[field]) {
@@ -196,7 +203,7 @@ export default function BookEditPage() {
           const { error } = await supabase
             .from("book_editions")
             .update({ [field]: value })
-            .eq("id", book.book_editions.id);
+            .eq("id", eid);
 
           pendingEditionFields.current.delete(field);
 
@@ -218,7 +225,7 @@ export default function BookEditPage() {
         }
       }, 500);
     },
-    [book]
+    [] // stable reference — uses ref for edition ID
   );
 
   const handleRemove = async () => {
