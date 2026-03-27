@@ -87,17 +87,21 @@ export default function FieldPicker({
     };
   }, []);
 
+  // Use a ref for onPick so the debounce timer always calls the latest version
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+
   const commitValue = useCallback(
     (raw: string) => {
       if (isArrayField) {
-        onPick(parseArray(raw));
+        onPickRef.current(parseArray(raw));
       } else if (isNumberField) {
-        onPick(parseNumber(raw));
+        onPickRef.current(parseNumber(raw));
       } else {
-        onPick(raw || null);
+        onPickRef.current(raw || null);
       }
     },
-    [isArrayField, isNumberField, onPick]
+    [isArrayField, isNumberField]
   );
 
   const handleChange = (raw: string) => {

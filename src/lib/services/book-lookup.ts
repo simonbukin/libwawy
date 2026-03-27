@@ -392,7 +392,7 @@ export async function searchByTitle(
 
 export async function fetchFieldOptions(
   isbn: string
-): Promise<Record<string, FieldOption[]>> {
+): Promise<{ options: Record<string, FieldOption[]>; providerCount: number }> {
   const results = await fetchFromProviders(isbn);
 
   const fields = [
@@ -426,7 +426,7 @@ export async function fetchFieldOptions(
     }
   }
 
-  return options;
+  return { options, providerCount: results.length };
 }
 
 // Re-lookup a single edition, bypassing cache, and update the DB row

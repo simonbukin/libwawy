@@ -43,6 +43,7 @@ export default function BookEditPage() {
   const [dateReadInput, setDateReadInput] = useState("");
   const [fieldOptions, setFieldOptions] = useState<Record<string, FieldOption[]> | null>(null);
   const [fetchingMetadata, setFetchingMetadata] = useState(false);
+  const [fetchResult, setFetchResult] = useState<string | null>(null);
 
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,33 +144,26 @@ export default function BookEditPage() {
     if (!isbn) return;
 
     setFetchingMetadata(true);
+    setFetchResult(null);
     try {
       const { fetchFieldOptions } = await import("@/lib/services/book-lookup");
-      const options = await fetchFieldOptions(isbn);
+      const { options, providerCount } = await fetchFieldOptions(isbn);
       setFieldOptions(options);
+      if (providerCount === 0) {
+        setFetchResult("No providers returned data — try again later");
+      } else {
+        setFetchResult(`Fetched from ${providerCount} provider${providerCount !== 1 ? "s" : ""}`);
+      }
     } catch {
       setFieldOptions({});
+      setFetchResult("Fetch failed — try again later");
     }
     setFetchingMetadata(false);
+    setTimeout(() => setFetchResult(null), 4000);
   }, [book]);
-
-  const editionDebounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const pendingEditionFields = useRef<Set<string>>(new Set());
-  const editionIdRef = useRef<string>("");
-
-  // Keep edition ID ref in sync
-  useEffect(() => {
-    if (book) editionIdRef.current = book.book_editions.id;
-  }, [book]);
-
-  useEffect(() => {
-    return () => {
-      Object.values(editionDebounceTimers.current).forEach(clearTimeout);
-    };
-  }, []);
 
   const updateEditionField = useCallback(
-    (field: string, value: unknown) => {
+    async (editionId: string, field: string, value: unknown) => {
       // Update local state immediately
       setBook((prev) =>
         prev
@@ -180,13 +174,7 @@ export default function BookEditPage() {
           : prev
       );
 
-      const eid = editionIdRef.current;
-      if (!eid) return;
-
-      // Clear existing debounce for this field
-      if (editionDebounceTimers.current[field]) {
-        clearTimeout(editionDebounceTimers.current[field]);
-      }
+      if (!editionId) return;
 
       if (statusTimer.current) {
         clearTimeout(statusTimer.current);
@@ -194,38 +182,20 @@ export default function BookEditPage() {
       }
 
       setSaveStatus("saving");
-      pendingEditionFields.current.add(field);
+      try {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from("book_editions")
+          .update({ [field]: value })
+          .eq("id", editionId);
 
-      // Debounce the DB save
-      editionDebounceTimers.current[field] = setTimeout(async () => {
-        try {
-          const supabase = createClient();
-          const { error } = await supabase
-            .from("book_editions")
-            .update({ [field]: value })
-            .eq("id", eid);
-
-          pendingEditionFields.current.delete(field);
-
-          if (pendingEditionFields.current.size === 0) {
-            if (error) {
-              setSaveStatus("error");
-              statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
-            } else {
-              setSaveStatus("saved");
-              statusTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
-            }
-          }
-        } catch {
-          pendingEditionFields.current.delete(field);
-          if (pendingEditionFields.current.size === 0) {
-            setSaveStatus("error");
-            statusTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
-          }
-        }
-      }, 500);
+        setSaveStatus(error ? "error" : "saved");
+      } catch {
+        setSaveStatus("error");
+      }
+      statusTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
     },
-    [] // stable reference — uses ref for edition ID
+    []
   );
 
   const handleRemove = async () => {
@@ -320,25 +290,30 @@ export default function BookEditPage() {
           >
             Edition Info
           </h2>
-          <button
-            onClick={handleFetchMetadata}
-            disabled={fetchingMetadata}
-            className="text-xs font-medium text-lavender hover:text-lavender-hover disabled:opacity-50 transition-colors flex items-center gap-1.5"
-          >
-            {fetchingMetadata ? (
-              <>
-                <div className="w-3 h-3 rounded-full border border-lavender border-t-transparent animate-spin" />
-                Fetching...
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                </svg>
-                Fetch from providers
-              </>
+          <div className="flex items-center gap-2">
+            {fetchResult && (
+              <span className="text-[10px] text-muted">{fetchResult}</span>
             )}
-          </button>
+            <button
+              onClick={handleFetchMetadata}
+              disabled={fetchingMetadata}
+              className="text-xs font-medium text-lavender hover:text-lavender-hover disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              {fetchingMetadata ? (
+                <>
+                  <div className="w-3 h-3 rounded-full border border-lavender border-t-transparent animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                  </svg>
+                  Fetch from providers
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -347,63 +322,63 @@ export default function BookEditPage() {
             field="cover_url"
             currentValue={edition.cover_url}
             options={fieldOptions?.cover_url ?? []}
-            onPick={(val) => updateEditionField("cover_url", val)}
+            onPick={(val) => updateEditionField(edition.id, "cover_url", val)}
           />
           <FieldPicker
             label="Title"
             field="title"
             currentValue={edition.title}
             options={fieldOptions?.title ?? []}
-            onPick={(val) => updateEditionField("title", val)}
+            onPick={(val) => updateEditionField(edition.id, "title", val)}
           />
           <FieldPicker
             label="Authors"
             field="authors"
             currentValue={edition.authors}
             options={fieldOptions?.authors ?? []}
-            onPick={(val) => updateEditionField("authors", val)}
+            onPick={(val) => updateEditionField(edition.id, "authors", val)}
           />
           <FieldPicker
             label="Publisher"
             field="publisher"
             currentValue={edition.publisher}
             options={fieldOptions?.publisher ?? []}
-            onPick={(val) => updateEditionField("publisher", val)}
+            onPick={(val) => updateEditionField(edition.id, "publisher", val)}
           />
           <FieldPicker
             label="Year"
             field="published_year"
             currentValue={edition.published_year}
             options={fieldOptions?.published_year ?? []}
-            onPick={(val) => updateEditionField("published_year", val)}
+            onPick={(val) => updateEditionField(edition.id, "published_year", val)}
           />
           <FieldPicker
             label="Pages"
             field="page_count"
             currentValue={edition.page_count}
             options={fieldOptions?.page_count ?? []}
-            onPick={(val) => updateEditionField("page_count", val)}
+            onPick={(val) => updateEditionField(edition.id, "page_count", val)}
           />
           <FieldPicker
             label="Format"
             field="format"
             currentValue={edition.format}
             options={fieldOptions?.format ?? []}
-            onPick={(val) => updateEditionField("format", val)}
+            onPick={(val) => updateEditionField(edition.id, "format", val)}
           />
           <FieldPicker
             label="Description"
             field="description"
             currentValue={edition.description}
             options={fieldOptions?.description ?? []}
-            onPick={(val) => updateEditionField("description", val)}
+            onPick={(val) => updateEditionField(edition.id, "description", val)}
           />
           <FieldPicker
             label="Genres"
             field="genres"
             currentValue={edition.genres}
             options={fieldOptions?.genres ?? []}
-            onPick={(val) => updateEditionField("genres", val)}
+            onPick={(val) => updateEditionField(edition.id, "genres", val)}
           />
         </div>
       </div>
