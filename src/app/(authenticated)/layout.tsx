@@ -4,6 +4,7 @@ import { LibraryProvider, useLibrary } from "@/lib/context/library-context";
 import Nav from "@/components/nav";
 import UserMenu from "@/components/user-menu";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 function AuthenticatedContent({ children }: { children: React.ReactNode }) {
@@ -49,12 +50,14 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-cream/80 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between px-4 py-3 max-w-4xl mx-auto">
-          <h1
-            className="text-lg font-bold text-charcoal tracking-tight"
-            style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
-          >
-            libwawy
-          </h1>
+          <Link href="/library">
+            <h1
+              className="text-lg font-bold text-charcoal tracking-tight"
+              style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
+            >
+              libwawy
+            </h1>
+          </Link>
           <UserMenu
             displayName={userDisplayName}
             email={userEmail}
